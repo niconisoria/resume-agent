@@ -2,7 +2,7 @@
 
 ## Iron Laws
 
-1. **Scope = docs/tasks.md** — build only what [docs/tasks.md](docs/tasks.md) lists for the current milestone. Anything else is out of scope until M5 ships.
+1. **Scope = docs/architecture.md** — build only what [docs/architecture.md](docs/architecture.md) describes. Anything else is out of scope.
 2. **Spec first** — no code without a spec file in `docs/specs/`.
 3. **Test first** — write failing tests before implementation.
 4. **Verify before done** — run the app and confirm the feature works end-to-end (local + deployed on Fly) before closing a milestone.
@@ -43,7 +43,6 @@ resume-agent/
 ├── CLAUDE.md              ← you are here (symlink → AGENTS.md)
 ├── docs/
 │   ├── architecture.md    ← stack, API contract, data model, guardrails, evals
-│   ├── tasks.md           ← milestones + checklists (scope source of truth)
 │   └── specs/             ← one .md per feature (brainstorm → stories → flows → impl)
 ├── app/
 │   ├── main.py            ← FastAPI app, routes, CORS, rate limits
@@ -85,7 +84,6 @@ Health check: `curl localhost:8000/health`.
 ## Docs
 
 - [docs/architecture.md](docs/architecture.md) — design, decisions, guardrails, eval thresholds
-- [docs/tasks.md](docs/tasks.md) — milestones and current scope
 - [docs/specs/](docs/specs/) — feature specs (start here for any new work)
 - [FastAPI](https://fastapi.tiangolo.com/)
 - [Anthropic tool use](https://docs.claude.com/en/docs/agents-and-tools/tool-use/overview)

@@ -2,9 +2,9 @@
 
 A conversational agent on the resume site. It answers questions about Nicolas's background from a knowledge base (RAG with citations), runs skills (book a call, get the CV), hands off to a human through a GitHub Issues queue, and is measured with evals and a public analytics page.
 
-**Goal:** working, deployed, and linked from the CV. Milestones live in [tasks.md](tasks.md).
+**Goal:** working, deployed, and linked from the CV.
 
-**Principle:** functional first. Every milestone ends deployed and working. Anything not in this doc or `tasks.md` is out of scope until M5 ships.
+**Principle:** functional first. Every milestone ends deployed and working. Anything not in this doc is out of scope.
 
 ---
 
@@ -223,6 +223,6 @@ Secrets live in Fly secrets (prod) and a git-ignored `.env` (local).
 
 ---
 
-## Out of scope (until M5 ships)
+## Out of scope
 
 Multi-instance scaling, Redis, captcha, auth, online evals on production traffic, multilingual answers beyond Claude's default behaviour, fancy UI theming.
