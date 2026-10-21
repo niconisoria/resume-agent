@@ -74,10 +74,17 @@ Frontend (Deep Chat widget + `/insights` page) lives in the `resume` repo.
 Run in background:
 
 ```
-uv run fastapi dev app/main.py
+uv run --env-file .env uvicorn app.main:app --reload
 ```
 
 Health check: `curl localhost:8000/health`.
+
+---
+
+## Test
+
+- framework: pytest
+- test_cmd: uv run pytest
 
 ---
 

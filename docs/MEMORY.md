@@ -1,0 +1,5 @@
+- fly deploy: always pass `--ha=false` on first deploy — default creates 2 machines, which breaks in-memory `slowapi` limits (needs exactly one instance).
+- `ALLOWED_ORIGIN` in `fly.toml` `[env]`, not Fly secrets: public value, versioned with deploy config; secrets reserved for keys/tokens.
+- `/health` liveness only, no DB ping: Fly checks every 30s would keep Neon awake and burn free compute hours.
+- test client dep is `httpx2`, not `httpx`: Starlette's `TestClient` deprecates `httpx`.
+- config via plain `os.environ`, no pydantic-settings: `KeyError` already names missing var; add settings lib only if typed parsing/validation gets real.
