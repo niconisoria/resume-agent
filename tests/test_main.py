@@ -2,13 +2,11 @@ import os
 import subprocess
 import sys
 
-ORIGIN = "https://allowed.example"
-os.environ["ALLOWED_ORIGIN"] = ORIGIN
-
 from fastapi.testclient import TestClient
 
 from app.main import app
 
+ORIGIN = os.environ["ALLOWED_ORIGIN"]
 client = TestClient(app)
 
 

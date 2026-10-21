@@ -3,3 +3,8 @@
 - `/health` liveness only, no DB ping: Fly checks every 30s would keep Neon awake and burn free compute hours.
 - test client dep is `httpx2`, not `httpx`: Starlette's `TestClient` deprecates `httpx`.
 - config via plain `os.environ`, no pydantic-settings: `KeyError` already names missing var; add settings lib only if typed parsing/validation gets real.
+- chat model call: `thinking: disabled` + `effort: low` on Haiku 5.5 — thinking is on by default and eats the 600-token `max_tokens` budget meant for visible text; revisit when tools land (S07).
+- `refusal` stop → error frame: Haiku 5.5 has no server-side refusal fallback, so stream must end with a readable message instead of silence.
+- `/chat` catches broad `Exception` inside the SSE generator: HTTP 200 + headers already sent, so any failure must surface as a `{"error"}` frame, never a dead stream.
+- Fly secrets set via `grep '^KEY=' .env | fly secrets import --stage` then `fly deploy`: value never printed, one restart.
+- tests set env in `tests/conftest.py`: `app.config` reads env at import, so env must exist before any app import.
