@@ -49,7 +49,7 @@ A conversational agent on the resume site. It answers questions about Nicolas's 
 | Frontend | Existing Astro site (`niconisoria/resume`) + **Deep Chat** web component + small `/insights` page |
 | Backend | **Python 3.12+, FastAPI**, SSE streaming, Docker, **Fly.io** single machine |
 | LLM | Anthropic SDK, native tool use, no agent framework. Chat: `claude-haiku-5-5`. Eval judge: `claude-sonnet-5-5`. Topic labels: `claude-haiku-5-5` |
-| Embeddings | Voyage AI (confirm current recommended model + dimension before M2) |
+| Embeddings | Voyage AI `voyage-4`, 1024 dims (`input_type`: `document` at ingest, `query` at search) |
 | Database | **Neon Postgres + pgvector** (knowledge, conversations, events) |
 | Queue / handoff | **GitHub Issues** in a private repo (`resume-agent-handoffs`), REST API with a fine-grained token |
 | Observability + evals | **Arize Phoenix Cloud** (free), OpenInference Anthropic instrumentation, `arize-phoenix-evals` |
@@ -146,7 +146,7 @@ CORS: allow only `ALLOWED_ORIGIN` (convenience, not security).
 ## Data model (`migrations/001_init.sql`)
 
 - `documents(id, path, title, metadata jsonb, updated_at)`
-- `chunks(id, document_id, content, embedding vector(N), position)`
+- `chunks(id, document_id, content, embedding vector(1024), position)`
 - `conversations(id uuid, ip_hash, status text default 'open', turns int, created_at)`
 - `messages(id, conversation_id, role, content, created_at)`
 - `events(id, conversation_id, message_id, type, topic, tool_name, latency_ms, input_tokens, output_tokens, cost_usd, rating, created_at)`
