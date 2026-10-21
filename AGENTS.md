@@ -81,6 +81,12 @@ Health check: `curl localhost:8000/health`.
 
 ---
 
+## Commits
+
+Conventional Commits, caveman style: `<type>(<scope>): <imperative summary>`, ≤50 chars, no period. Body only for non-obvious why, breaking changes, migrations. No AI attribution.
+
+---
+
 ## Docs
 
 - [docs/architecture.md](docs/architecture.md) — design, decisions, guardrails, eval thresholds
