@@ -37,7 +37,7 @@ A conversational agent on Nicolas's site (`niconisoria.github.io`). It answers q
                  ├── events / messages ──► Neon Postgres
                  └── traces ──► Phoenix Cloud (OpenInference)
 
- GitHub Actions: lint + tests + Phoenix eval experiment on PR
+ GitHub Actions: lint + tests on PR/push, deploy to Fly on main, Phoenix eval experiment on PR
 ```
 
 ---
@@ -54,7 +54,7 @@ A conversational agent on Nicolas's site (`niconisoria.github.io`). It answers q
 | Queue / handoff | **GitHub Issues** in a private repo (`resume-agent-handoffs`), REST API with a fine-grained token |
 | Observability + evals | **Arize Phoenix Cloud** (free), OpenInference Anthropic instrumentation, `arize-phoenix-evals` |
 | Rate limiting | `slowapi` in-memory (valid only because there is one instance) + daily budget check in Postgres |
-| CI | GitHub Actions: lint, tests, eval experiment on PR |
+| CI/CD | GitHub Actions: lint + tests on every PR and push; on `main` deploy to Fly (deploy token secret) after checks pass, then `/health` smoke check; eval experiment on PR |
 
 **Deliberately not used:** Redis, Turnstile/captcha, LangChain/LlamaIndex/LangGraph, a BI tool, self-hosted Phoenix, auth. Add only if a real need appears.
 
