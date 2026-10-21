@@ -8,3 +8,7 @@
 - `/chat` catches broad `Exception` inside the SSE generator: HTTP 200 + headers already sent, so any failure must surface as a `{"error"}` frame, never a dead stream.
 - Fly secrets set via `grep '^KEY=' .env | fly secrets import --stage` then `fly deploy`: value never printed, one restart.
 - tests set env in `tests/conftest.py`: `app.config` reads env at import, so env must exist before any app import.
+- rate limit key `Fly-Client-IP` is trustworthy: Fly proxy overwrites a client-supplied header (verified live: spoofed value still hit same counter).
+- 429 retry seconds read from `limiter.limiter.get_window_stats(...).reset_time`, not slowapi's default handler: default body leaks limit string ("10 per 1 minute") and has no human retry time.
+- fixed window accepted over moving window: allows ~2× burst at window boundary; daily budget cap (S13) is real spend backstop.
+- tests fake clock by monkeypatching `time.time`: `limits` in-memory storage and the 429 handler both read `time.time()`, so one patch moves windows and retry math together.

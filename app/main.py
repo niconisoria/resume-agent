@@ -7,9 +7,11 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field, field_validator
+from slowapi.errors import RateLimitExceeded
 
 from app.agent import ReplyRefused, stream_reply
 from app.config import ALLOWED_ORIGIN
+from app.ratelimit import CHAT_LIMITS, limiter, rate_limited
 
 log = logging.getLogger(__name__)
 
@@ -19,6 +21,8 @@ MODEL_ERROR = "Sorry, the assistant can't answer right now. Please try again lat
 REFUSAL_ERROR = "Sorry, the assistant can't help with that."
 
 app = FastAPI(title="resume-agent")
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, rate_limited)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[ALLOWED_ORIGIN],
@@ -61,7 +65,8 @@ async def chat_events(message: str):
 
 
 @app.post("/chat")
-async def chat(body: ChatIn):
+@limiter.limit(CHAT_LIMITS)
+async def chat(request: Request, body: ChatIn):  # slowapi needs `request`
     return StreamingResponse(
         chat_events(body.message),
         media_type="text/event-stream",
