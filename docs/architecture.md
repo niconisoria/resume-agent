@@ -1,6 +1,6 @@
 # Architecture
 
-A conversational agent on the resume site. It answers questions about Nicolas's background from a knowledge base (RAG with citations), runs skills (book a call, get the CV), hands off to a human through a GitHub Issues queue, and is measured with evals and a public analytics page.
+A conversational agent on Nicolas's site (`niconisoria.github.io`). It answers questions about Nicolas's background from a knowledge base (RAG with citations), runs skills (book a call, get the CV), hands off to a human through a GitHub Issues queue, and is measured with evals and a public analytics page.
 
 **Goal:** working, deployed, and linked from the CV.
 
@@ -24,7 +24,7 @@ A conversational agent on the resume site. It answers questions about Nicolas's 
 ## System overview
 
 ```
- resume site (Astro, GitHub Pages)
+ niconisoria.github.io (Astro, GitHub Pages)
  ├── Deep Chat widget ──SSE──┐
  └── /insights page ──GET────┤
                              ▼
@@ -46,7 +46,7 @@ A conversational agent on the resume site. It answers questions about Nicolas's 
 
 | Layer | Choice |
 |---|---|
-| Frontend | Existing Astro site (`niconisoria/resume`) + **Deep Chat** web component + small `/insights` page |
+| Frontend | Astro user site (`niconisoria/niconisoria.github.io`, CV at `/resume/`) + **Deep Chat** web component + small `/insights` page |
 | Backend | **Python 3.12+, FastAPI**, SSE streaming, Docker, **Fly.io** single machine |
 | LLM | Anthropic SDK, native tool use, no agent framework. Chat: `claude-haiku-5-5`. Eval judge: `claude-sonnet-5-5`. Topic labels: `claude-haiku-5-5` |
 | Embeddings | Voyage AI `voyage-4`, 1024 dims (`input_type`: `document` at ingest, `query` at search) |
@@ -78,7 +78,7 @@ A conversational agent on the resume site. It answers questions about Nicolas's 
 
 Two repos:
 - **`resume-agent`** (this repo): backend, knowledge, evals, docs.
-- **`resume`** (Astro): chat widget component + `/insights` page.
+- **`niconisoria.github.io`** (Astro user site, formerly `resume`; CV at `/resume/`): chat widget component + `/insights` page.
 
 ```
 resume-agent/

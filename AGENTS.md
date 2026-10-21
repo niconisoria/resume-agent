@@ -65,7 +65,7 @@ resume-agent/
 └── .github/workflows/ci.yml
 ```
 
-Frontend (Deep Chat widget + `/insights` page) lives in the `resume` repo.
+Frontend (Deep Chat widget + `/insights` page) lives in the `niconisoria.github.io` repo (Astro user site; CV at `/resume/`).
 
 ---
 
