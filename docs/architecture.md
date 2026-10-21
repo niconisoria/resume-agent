@@ -143,6 +143,20 @@ CORS: allow only `ALLOWED_ORIGIN` (convenience, not security).
 
 ---
 
+## Chunking (`scripts/ingest.py`)
+
+Heading-based, since the knowledge base is hand-written markdown with natural topic boundaries.
+
+1. Split each file on `##` headings: one section = one chunk. Write knowledge files so each section is one topic (a role, a project, a skill group).
+2. Files under ~500 tokens stay a single chunk.
+3. Sections over ~500 tokens split on paragraph boundaries, never mid-paragraph; no overlap.
+4. Prepend a context header before embedding: `<doc title> > <section heading>` (e.g. `Vention — Senior Engineer > Achievements`).
+5. Store `source_path`, `source_title`, `position` per chunk for citations.
+
+Not used: fixed-size windows with overlap, semantic chunking. Fallback if retrieval-hit < 0.8: tune chunk size/headers first, then try `voyage-context-3`.
+
+---
+
 ## Data model (`migrations/001_init.sql`)
 
 - `documents(id, path, title, metadata jsonb, updated_at)`
