@@ -32,7 +32,7 @@
 | Format        | `uv run ruff format .`                                         |
 | Evals         | `uv run python evals/run_evals.py`                             |
 | Ingest        | `uv run python scripts/ingest.py`                              |
-| Deploy        | `fly deploy`                                                   |
+| Ship          | CI on push to `main` (`.github/workflows/ci.yml`); fallback `fly deploy --ha=false` |
 
 ---
 
