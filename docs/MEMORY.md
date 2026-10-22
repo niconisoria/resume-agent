@@ -12,3 +12,7 @@
 - 429 retry seconds read from `limiter.limiter.get_window_stats(...).reset_time`, not slowapi's default handler: default body leaks limit string ("10 per 1 minute") and has no human retry time.
 - fixed window accepted over moving window: allows ~2× burst at window boundary; daily budget cap (S14) is real spend backstop.
 - tests fake clock by monkeypatching `time.time`: `limits` in-memory storage and the 429 handler both read `time.time()`, so one patch moves windows and retry math together.
+- CI deploy token expires 2027-10-22 (`fly tokens create deploy -x 8760h`): rotate by piping a new one into `gh secret set FLY_API_TOKEN`; expired token shows as deploy step auth failure.
+- deploy `concurrency.cancel-in-progress: false`: cancelling mid `flyctl deploy` can leave a half-rolled machine; queued runs still collapse to newest.
+- changed-file detection is a shell `case` over `git diff`, not a paths-filter action: no third-party action with repo access; unknown `before` (first/force push) deploys rather than silently skipping.
+- action pins ≥2 weeks old (`setup-uv@v10.2.0`, not same-day `v10.3.2`): fresh releases are where supply-chain compromises land.
