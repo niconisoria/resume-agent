@@ -20,3 +20,8 @@
 - ingest wraps migration + embedding + writes in one transaction: Voyage failure mid-run (live 429) left DB untouched; embedding inside txn holds it open briefly, fine for a manual CLI.
 - `messages.id` is uuid, not bigserial: S13 feedback receives `message_id` from the browser, so ids must not be enumerable.
 - run ingest as `python -m scripts.ingest`, not `python scripts/ingest.py`: script-path mode puts `scripts/` on sys.path and `import app` fails.
+- psycopg pool `prepare_threshold=None`: Neon pooled URL is PgBouncer transaction mode, prepared statements break across pooled connections.
+- pool `timeout=5`: default 30s made visitors wait 30s for a 503 when Neon unreachable (measured live); 5s still covers a Neon cold-start wake.
+- empty assistant replies never saved: API rejects empty assistant content, so one empty row would break every later turn of that chat.
+- `start_turn` before `StreamingResponse`: refusals (turn cap 429, DB 503) need real status codes, impossible once SSE 200 headers are sent.
+- local dev `.env` points at the same Neon DB as prod: local test chats land in prod tables; clean up or use a Neon branch before analytics (S18) matter.

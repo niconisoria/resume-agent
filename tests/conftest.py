@@ -1,4 +1,5 @@
 import os
+import uuid
 from types import SimpleNamespace
 
 import pytest
@@ -6,6 +7,8 @@ import pytest
 # Test env must exist before app.config is imported.
 os.environ["ALLOWED_ORIGIN"] = "https://allowed.example"
 os.environ["ANTHROPIC_API_KEY"] = "test-key"
+os.environ["DATABASE_URL"] = "postgresql://test@localhost/test"
+os.environ["IP_HASH_SALT"] = "test-salt"
 
 
 @pytest.fixture(autouse=True)
@@ -60,3 +63,47 @@ def model(monkeypatch):
         return fake
 
     return install
+
+
+class FakeDB:
+    """In-memory stand-in for app.db (start_turn / save_reply)."""
+
+    def __init__(self):
+        self.conversations = {}  # id -> {"ip_hash", "turns"}
+        self.messages = []  # (conversation_id, role, content, message_id)
+        self.down = False
+
+    async def start_turn(self, conversation_id, ip_hash, text):
+        from app import db
+
+        if self.down:
+            raise ConnectionError("db down")
+        if conversation_id not in self.conversations:
+            conversation_id = uuid.uuid4()
+            self.conversations[conversation_id] = {"ip_hash": ip_hash, "turns": 0}
+        conv = self.conversations[conversation_id]
+        if conv["turns"] >= db.MAX_TURNS:
+            raise db.TurnLimit
+        history = [
+            {"role": role, "content": content}
+            for cid, role, content, _ in self.messages
+            if cid == conversation_id
+        ]
+        conv["turns"] += 1
+        self.messages.append((conversation_id, "user", text, uuid.uuid4()))
+        return conversation_id, history
+
+    async def save_reply(self, conversation_id, text):
+        message_id = uuid.uuid4()
+        self.messages.append((conversation_id, "assistant", text, message_id))
+        return message_id
+
+
+@pytest.fixture(autouse=True)
+def fake_db(monkeypatch):
+    from app import db
+
+    fake = FakeDB()
+    monkeypatch.setattr(db, "start_turn", fake.start_turn)
+    monkeypatch.setattr(db, "save_reply", fake.save_reply)
+    return fake

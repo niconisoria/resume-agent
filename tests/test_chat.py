@@ -27,7 +27,7 @@ def test_reply_streams_as_multiple_text_frames(model):
     assert res.status_code == 200
     assert res.headers["content-type"].startswith("text/event-stream")
     assert res.headers["cache-control"] == "no-cache"
-    assert frames(res) == [
+    assert frames(res)[:-1] == [
         {"text": "Nicolas "},
         {"text": "builds "},
         {"text": "agents."},
@@ -81,15 +81,15 @@ def test_model_failure_sends_readable_error_frame(model):
     assert res.status_code == 200
     out = frames(res)
     assert out[0] == {"text": "Partial "}
-    assert set(out[-1]) == {"error"}
-    assert "api.anthropic.com" not in out[-1]["error"]
+    assert set(out[-2]) == {"error"}
+    assert "api.anthropic.com" not in out[-2]["error"]
 
 
 def test_unexpected_failure_still_sends_error_frame(model):
     model(chunks=["Partial "], error=ValueError("bad SDK payload"))
     out = frames(http.post("/chat", json={"message": "hi"}))
-    assert set(out[-1]) == {"error"}
-    assert "bad SDK payload" not in out[-1]["error"]
+    assert set(out[-2]) == {"error"}
+    assert "bad SDK payload" not in out[-2]["error"]
 
 
 def test_invalid_conversation_id_refused_with_generic_error(model):
@@ -103,7 +103,7 @@ def test_invalid_conversation_id_refused_with_generic_error(model):
 def test_refusal_sends_error_frame(model):
     model(chunks=[], stop_reason="refusal")
     out = frames(http.post("/chat", json={"message": "hi"}))
-    assert set(out[-1]) == {"error"}
+    assert set(out[-2]) == {"error"}
 
 
 def test_missing_anthropic_key_fails_boot():

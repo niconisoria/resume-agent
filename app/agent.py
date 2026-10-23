@@ -22,7 +22,8 @@ class ReplyRefused(Exception):
     pass
 
 
-async def stream_reply(message: str) -> AsyncIterator[str]:
+async def stream_reply(message: str, history: list[dict]) -> AsyncIterator[str]:
+    """history: earlier {role, content} turns, oldest first."""
     async with client.messages.stream(
         model=MODEL,
         max_tokens=MAX_TOKENS,
@@ -30,7 +31,7 @@ async def stream_reply(message: str) -> AsyncIterator[str]:
         # Short chat replies: skip thinking so the whole budget goes to text.
         thinking={"type": "disabled"},
         output_config={"effort": "low"},
-        messages=[{"role": "user", "content": message}],
+        messages=[*history, {"role": "user", "content": message}],
     ) as stream:
         async for text in stream.text_stream:
             yield text
