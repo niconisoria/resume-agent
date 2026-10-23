@@ -74,7 +74,7 @@ def ip_hash(ip: str) -> str:
 
 async def chat_events(conversation_id: uuid.UUID, message: str, history: list[dict]):
     parts: list[str] = []
-    citations: list[dict] = []
+    done: dict = {"citations": [], "cards": []}
     message_id = None
     try:
         async for event in stream_reply(message, history):
@@ -82,7 +82,7 @@ async def chat_events(conversation_id: uuid.UUID, message: str, history: list[di
                 parts.append(event["text"])
                 yield sse(event)
             else:
-                citations = event["citations"]
+                done = event
     except ReplyRefused:
         yield sse({"error": REFUSAL_ERROR})
     except Exception:
@@ -102,7 +102,8 @@ async def chat_events(conversation_id: uuid.UUID, message: str, history: list[di
         {
             "conversation_id": str(conversation_id),
             "message_id": str(message_id) if message_id else None,
-            "citations": citations,
+            "citations": done["citations"],
+            "cards": done["cards"],
         }
     )
 

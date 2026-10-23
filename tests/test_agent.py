@@ -137,7 +137,7 @@ def test_search_tool_offered_on_every_call(model):
     fake = model(chunks=["hi"])
     ask()
     tools = fake.calls[0]["tools"]
-    assert [t["name"] for t in tools] == ["search_knowledge"]
+    assert tools[0]["name"] == "search_knowledge"
     assert tools[0]["input_schema"]["required"] == ["query"]
 
 
@@ -155,14 +155,30 @@ def test_system_prompt_holds_scope_and_injection_rules():
     assert "instructions" in prompt and "ignore" in prompt
 
 
-def test_text_from_separate_rounds_gets_paragraph_break(model, fake_db, fake_search):
+def test_narration_before_first_tool_call_is_dropped(model, fake_db, fake_search):
     fake_search.hits = [VENTION]
     model(
         turns=[
-            {"chunks": ["Let me check."], "tool_calls": [search("x")]},
+            {
+                "chunks": ["Polish question, so language is pl."],
+                "tool_calls": [search("x")],
+            },
             {"chunks": ["He did [1]."]},
         ]
     )
     out = ask()
-    assert "".join(f.get("text", "") for f in out) == "Let me check.\n\nHe did [1]."
-    assert fake_db.messages[-1][2] == "Let me check.\n\nHe did [1]."
+    assert "".join(f.get("text", "") for f in out) == "He did [1]."
+    assert fake_db.messages[-1][2] == "He did [1]."
+
+
+def test_text_between_later_rounds_gets_paragraph_break(model, fake_search):
+    fake_search.hits = [VENTION]
+    model(
+        turns=[
+            {"tool_calls": [search("x")]},
+            {"chunks": ["First part [1]."], "tool_calls": [search("y")]},
+            {"chunks": ["Second part."]},
+        ]
+    )
+    out = ask()
+    assert "".join(f.get("text", "") for f in out) == "First part [1].\n\nSecond part."

@@ -29,3 +29,7 @@
 - citations parsed from `[n]` markers in final text, not "all retrieved docs": lists only sources the answer actually used; matches groundedness eval (S16).
 - Haiku with thinking off sometimes writes a preamble ("I'll check…") before tool calls despite prompt rule; kept (paragraph-break join) — track in evals (S16) rather than enable thinking.
 - tool `eager_input_streaming` off: single short `query` string, buffering costs nothing; input still validated before search.
+- text before first tool call held back, dropped if a tool follows: with thinking off, Haiku narrated plans into the reply ("Polish question, so CV language is pl") and repeated answers (seen live). Cost: replies with no tool call arrive in one frame; post-tool answers still stream.
+- tool notes say "already shown" on repeat card calls: model otherwise claimed "each shown twice" while cards were deduped.
+- Haiku still says "above/below" for buttons despite prompt rule; position depends on widget (S10) — track in evals (S16).
+- public config (CALENDAR_URL, CV_URL_*) stays in `fly.toml [env]`, not secrets (user decision): reviewed in git; changes deploy via CI.

@@ -14,7 +14,13 @@ http = TestClient(app)
 
 
 def test_reply_streams_as_multiple_text_frames(model):
-    model(chunks=["Nicolas ", "builds ", "agents."])
+    # Answers after a tool call stream chunk by chunk.
+    model(
+        turns=[
+            {"tool_calls": [("search_knowledge", {"query": "role"})]},
+            {"chunks": ["Nicolas ", "builds ", "agents."]},
+        ]
+    )
     res = http.post("/chat", json={"message": "What does he do?"})
     assert res.status_code == 200
     assert res.headers["content-type"].startswith("text/event-stream")
@@ -72,7 +78,6 @@ def test_model_failure_sends_readable_error_frame(model):
     res = http.post("/chat", json={"message": "hi"})
     assert res.status_code == 200
     out = frames(res)
-    assert out[0] == {"text": "Partial "}
     assert set(out[-2]) == {"error"}
     assert "api.anthropic.com" not in out[-2]["error"]
 
@@ -110,3 +115,9 @@ def test_missing_anthropic_key_fails_boot():
     )
     assert proc.returncode != 0
     assert "ANTHROPIC_API_KEY" in proc.stderr
+
+
+def test_reply_without_tools_arrives_whole(model):
+    model(chunks=["Hello ", "there!"])
+    out = frames(http.post("/chat", json={"message": "hi"}))
+    assert out[:-1] == [{"text": "Hello there!"}]

@@ -9,6 +9,9 @@ os.environ["ALLOWED_ORIGIN"] = "https://allowed.example"
 os.environ["ANTHROPIC_API_KEY"] = "test-key"
 os.environ["DATABASE_URL"] = "postgresql://test@localhost/test"
 os.environ["IP_HASH_SALT"] = "test-salt"
+os.environ["CALENDAR_URL"] = "https://cal.example/book"
+os.environ["CV_URL_EN"] = "https://cv.example/en.pdf"
+os.environ["CV_URL_PL"] = "https://cv.example/pl.pdf"
 
 
 @pytest.fixture(autouse=True)

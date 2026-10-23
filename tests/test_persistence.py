@@ -21,7 +21,7 @@ def chat(message, conversation_id=None, ip="1.1.1.1"):
 def test_first_message_ends_with_chat_and_message_ids(model, fake_db):
     model(chunks=["Hello", " there"])
     final = frames(chat("hi"))[-1]
-    assert set(final) == {"conversation_id", "message_id", "citations"}
+    assert set(final) == {"conversation_id", "message_id", "citations", "cards"}
     conversation_id = uuid.UUID(final["conversation_id"])
     assert conversation_id in fake_db.conversations
     saved = [m for m in fake_db.messages if m[1] == "assistant"]

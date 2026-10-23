@@ -3,6 +3,9 @@ primary_region = "fra"
 
 [env]
   ALLOWED_ORIGIN = "https://niconisoria.github.io"
+  CALENDAR_URL = "https://calendar.google.com/calendar/u/0/appointments/schedules/AcZssZ3yZ09qpZX0Mhcm_V3JOd-nncW3GzShwl07WaBsNvbtH7wdNH69kF1ioKSySfZX894lpdFLG5Xa?gv=true"
+  CV_URL_EN = "https://niconisoria.github.io/resume/nicolas-nisoria.pdf"
+  CV_URL_PL = "https://niconisoria.github.io/resume/nicolas-nisoria-pl.pdf"
 
 [http_service]
   internal_port = 8000

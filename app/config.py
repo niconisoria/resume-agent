@@ -5,3 +5,5 @@ ALLOWED_ORIGIN = os.environ["ALLOWED_ORIGIN"]
 ANTHROPIC_API_KEY = os.environ["ANTHROPIC_API_KEY"]
 DATABASE_URL = os.environ["DATABASE_URL"]
 IP_HASH_SALT = os.environ["IP_HASH_SALT"]
+CALENDAR_URL = os.environ["CALENDAR_URL"]
+CV_URLS = {"en": os.environ["CV_URL_EN"], "pl": os.environ["CV_URL_PL"]}
