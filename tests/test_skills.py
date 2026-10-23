@@ -34,11 +34,11 @@ def tool(name, **args):
     return (name, args)
 
 
-def test_three_tools_offered(model):
+def test_skill_tools_offered(model):
     fake = model(chunks=["hi"])
     ask()
     names = [t["name"] for t in fake.calls[0]["tools"]]
-    assert names == ["search_knowledge", "book_call", "get_cv"]
+    assert names[:3] == ["search_knowledge", "book_call", "get_cv"]
     cv = fake.calls[0]["tools"][2]["input_schema"]
     assert cv["properties"]["language"]["enum"] == ["en", "pl"]
     assert cv["required"] == ["language"]

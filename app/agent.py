@@ -1,16 +1,21 @@
+import logging
 import re
+import uuid
 from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 
 import anthropic
 
-from app import retrieval
+from app import db, handoff, retrieval
 from app.config import ANTHROPIC_API_KEY, CALENDAR_URL, CV_URLS
 
 MODEL = "claude-haiku-5-5"
 MAX_TOKENS = 600
 MAX_TOOL_ROUNDS = 4
 MAX_QUERY_CHARS = 500
+MAX_FIELD_CHARS = 1000
+
+log = logging.getLogger(__name__)
 
 SYSTEM_PROMPT = """\
 You are the assistant on Nicolas Nisoria's personal site. You answer visitors' \
@@ -33,6 +38,11 @@ offer a call, call book_call so a booking button is shown.
 - When the visitor wants Nicolas's CV or resume, call get_cv. Use the language \
 they ask for; otherwise use the conversation's language: Polish → "pl", any \
 other language → "en".
+- When the visitor wants Nicolas to get back to them, or wants a reply to a \
+question you can't answer, call escalate_to_human. You need their email: if they \
+haven't given one in this message, ask for it first and never invent one. Only \
+one ticket per chat; after it's created, mention the ticket number and say \
+Nicolas will follow up by email.
 - Never write URLs or links; buttons are shown to the visitor automatically. \
 Mention a button briefly, without saying where it appears; each button is shown \
 once.
@@ -86,7 +96,28 @@ GET_CV_TOOL = {
     },
 }
 
-TOOLS = [SEARCH_TOOL, BOOK_CALL_TOOL, GET_CV_TOOL]
+ESCALATE_TOOL = {
+    "name": "escalate_to_human",
+    "description": (
+        "Open a private ticket so Nicolas follows up with the visitor by email. "
+        "Requires the visitor's email address."
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "summary": {
+                "type": "string",
+                "description": "The visitor's question or request.",
+            },
+            "reason": {"type": "string", "description": "Why a human is needed."},
+            "contact_email": {"type": "string", "description": "Visitor's email."},
+        },
+        "required": ["summary", "reason", "contact_email"],
+        "additionalProperties": False,
+    },
+}
+
+TOOLS = [SEARCH_TOOL, BOOK_CALL_TOOL, GET_CV_TOOL, ESCALATE_TOOL]
 
 client = anthropic.AsyncAnthropic(api_key=ANTHROPIC_API_KEY)
 
@@ -97,14 +128,17 @@ class ReplyRefused(Exception):
 
 @dataclass
 class Turn:
-    """Per-reply tool state: search hits (citation numbering) and UI cards."""
+    """Per-reply tool state: search hits (citation numbering), UI cards, chat context."""
 
+    conversation_id: uuid.UUID | None = None
+    transcript: list[dict] = field(default_factory=list)
+    escalated: bool = False
     hits: list[retrieval.Hit] = field(default_factory=list)
     cards: dict[tuple[str, str], dict] = field(default_factory=dict)
 
     def add_card(self, card: dict) -> str:
         """Add card once; returns the tool-result note for the model."""
-        key = (card["type"], card["url"])
+        key = (card["type"], card.get("url"))
         if key in self.cards:
             return f"{card['label']} button is already shown; it appears only once."
         self.cards[key] = card
@@ -160,7 +194,58 @@ async def _get_cv(call, turn: Turn) -> dict:
     return _result(call, turn.add_card(card))
 
 
-HANDLERS = {"search_knowledge": _search, "book_call": _book_call, "get_cv": _get_cv}
+async def _escalate(call, turn: Turn) -> dict:
+    if turn.escalated:
+        return _result(
+            call, "This chat is already with Nicolas; no new ticket created."
+        )
+    args = _args(call)
+    fields = [args.get(k) for k in ("summary", "reason", "contact_email")]
+    if not all(
+        isinstance(f, str) and f.strip() and len(f) <= MAX_FIELD_CHARS for f in fields
+    ):
+        return _result(
+            call, "summary, reason and contact_email are required.", error=True
+        )
+    summary, reason, email = (f.strip() for f in fields)
+    if not handoff.is_email(email):
+        return _result(
+            call,
+            "contact_email is not a valid email; ask the visitor to fix it.",
+            error=True,
+        )
+    body = handoff.issue_body(
+        summary, reason, email, str(turn.conversation_id), turn.transcript
+    )
+    try:
+        number = await handoff.create_issue(f"Handoff: {summary[:80]}", body)
+    except Exception:
+        log.exception("handoff issue failed")
+        await _book_call(call, turn)
+        return _result(
+            call,
+            "Ticket system unavailable; no ticket created. A booking button is already "
+            "shown; do not call any other tool. Write one short apology and mention it.",
+            error=True,
+        )
+    turn.escalated = True
+    try:
+        await db.mark_escalated(turn.conversation_id)
+    except Exception:
+        # Ticket exists: report success anyway so the visitor doesn't retry into a duplicate.
+        log.exception("mark_escalated failed for ticket #%s", number)
+    turn.add_card(
+        {"type": "handoff", "label": "Nicolas will follow up by email", "issue": number}
+    )
+    return _result(call, f"Ticket #{number} created; Nicolas will follow up by email.")
+
+
+HANDLERS = {
+    "search_knowledge": _search,
+    "book_call": _book_call,
+    "get_cv": _get_cv,
+    "escalate_to_human": _escalate,
+}
 
 
 async def _run_tool(call, turn: Turn) -> dict:
@@ -180,10 +265,17 @@ def _citations(text: str, hits: list[retrieval.Hit]) -> list[dict]:
     return list(cited.values())
 
 
-async def stream_reply(message: str, history: list[dict]) -> AsyncIterator[dict]:
+async def stream_reply(
+    message: str,
+    history: list[dict],
+    conversation_id: uuid.UUID,
+    escalated: bool,
+) -> AsyncIterator[dict]:
     """Tool loop. Yields {"text": chunk} events, then one {"citations", "cards"}."""
     messages = [*history, {"role": "user", "content": message}]
-    turn = Turn()
+    turn = Turn(
+        conversation_id=conversation_id, transcript=messages[:], escalated=escalated
+    )
     parts: list[str] = []
     used_tools = False
     for round_ in range(MAX_TOOL_ROUNDS + 1):

@@ -12,6 +12,8 @@ os.environ["IP_HASH_SALT"] = "test-salt"
 os.environ["CALENDAR_URL"] = "https://cal.example/book"
 os.environ["CV_URL_EN"] = "https://cv.example/en.pdf"
 os.environ["CV_URL_PL"] = "https://cv.example/pl.pdf"
+os.environ["GITHUB_TOKEN"] = "test-gh-token"
+os.environ["GITHUB_HANDOFF_REPO"] = "owner/handoffs"
 
 
 @pytest.fixture(autouse=True)
@@ -117,7 +119,11 @@ class FakeDB:
             raise ConnectionError("db down")
         if conversation_id not in self.conversations:
             conversation_id = uuid.uuid4()
-            self.conversations[conversation_id] = {"ip_hash": ip_hash, "turns": 0}
+            self.conversations[conversation_id] = {
+                "ip_hash": ip_hash,
+                "turns": 0,
+                "status": "open",
+            }
         conv = self.conversations[conversation_id]
         if conv["turns"] >= db.MAX_TURNS:
             raise db.TurnLimit
@@ -128,7 +134,10 @@ class FakeDB:
         ]
         conv["turns"] += 1
         self.messages.append((conversation_id, "user", text, uuid.uuid4()))
-        return conversation_id, history
+        return conversation_id, history, conv["status"]
+
+    async def mark_escalated(self, conversation_id):
+        self.conversations[conversation_id]["status"] = "escalated"
 
     async def save_reply(self, conversation_id, text):
         message_id = uuid.uuid4()
@@ -143,4 +152,22 @@ def fake_db(monkeypatch):
     fake = FakeDB()
     monkeypatch.setattr(db, "start_turn", fake.start_turn)
     monkeypatch.setattr(db, "save_reply", fake.save_reply)
+    monkeypatch.setattr(db, "mark_escalated", fake.mark_escalated)
     return fake
+
+
+@pytest.fixture(autouse=True)
+def fake_issues(monkeypatch):
+    """GitHub handoff issues. Default: created as #42. Set `.error` to fail."""
+    from app import handoff
+
+    state = SimpleNamespace(created=[], error=None, real=handoff.create_issue)
+
+    async def create_issue(title, body):
+        if state.error:
+            raise state.error
+        state.created.append({"title": title, "body": body})
+        return 42
+
+    monkeypatch.setattr(handoff, "create_issue", create_issue)
+    return state

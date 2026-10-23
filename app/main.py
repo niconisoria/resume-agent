@@ -14,6 +14,7 @@ from slowapi.errors import RateLimitExceeded
 from app import db
 from app.agent import ReplyRefused, stream_reply
 from app.config import ALLOWED_ORIGIN, IP_HASH_SALT
+from app.handoff import redact_emails
 from app.ratelimit import CHAT_LIMITS, client_ip, limiter, rate_limited
 
 log = logging.getLogger(__name__)
@@ -72,12 +73,14 @@ def ip_hash(ip: str) -> str:
     return hashlib.sha256(f"{ip}{IP_HASH_SALT}".encode()).hexdigest()
 
 
-async def chat_events(conversation_id: uuid.UUID, message: str, history: list[dict]):
+async def chat_events(
+    conversation_id: uuid.UUID, message: str, history: list[dict], escalated: bool
+):
     parts: list[str] = []
     done: dict = {"citations": [], "cards": []}
     message_id = None
     try:
-        async for event in stream_reply(message, history):
+        async for event in stream_reply(message, history, conversation_id, escalated):
             if "text" in event:
                 parts.append(event["text"])
                 yield sse(event)
@@ -94,7 +97,7 @@ async def chat_events(conversation_id: uuid.UUID, message: str, history: list[di
         # Empty assistant turns are rejected by the API and would break the chat.
         if reply.strip():
             try:
-                message_id = await db.save_reply(conversation_id, reply)
+                message_id = await db.save_reply(conversation_id, redact_emails(reply))
             except Exception:
                 log.exception("save_reply failed")
     # Always last: the widget keeps the chat id even when the reply failed.
@@ -112,8 +115,11 @@ async def chat_events(conversation_id: uuid.UUID, message: str, history: list[di
 @limiter.limit(CHAT_LIMITS)
 async def chat(request: Request, body: ChatIn):  # slowapi needs `request`
     try:
-        conversation_id, history = await db.start_turn(
-            body.conversation_id, ip_hash(client_ip(request)), body.message
+        # Emails go only to the handoff ticket, never into stored messages.
+        conversation_id, history, status = await db.start_turn(
+            body.conversation_id,
+            ip_hash(client_ip(request)),
+            redact_emails(body.message),
         )
     except db.TurnLimit:
         return JSONResponse(status_code=429, content={"error": TURN_LIMIT_ERROR})
@@ -121,7 +127,7 @@ async def chat(request: Request, body: ChatIn):  # slowapi needs `request`
         log.exception("start_turn failed")
         return JSONResponse(status_code=503, content={"error": UNAVAILABLE_ERROR})
     return StreamingResponse(
-        chat_events(conversation_id, body.message, history),
+        chat_events(conversation_id, body.message, history, status == "escalated"),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache"},
     )

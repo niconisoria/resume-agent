@@ -33,3 +33,7 @@
 - tool notes say "already shown" on repeat card calls: model otherwise claimed "each shown twice" while cards were deduped.
 - Haiku still says "above/below" for buttons despite prompt rule; position depends on widget (S10) — track in evals (S16).
 - public config (CALENDAR_URL, CV_URL_*) stays in `fly.toml [env]`, not secrets (user decision): reviewed in git; changes deploy via CI.
+- emails redacted before storing messages, model sees current message raw: architecture forbids emails in Postgres; cost is an email from an earlier turn must be asked again (redacted in history).
+- GitHub failure tool note says 'button already shown, call no other tool': live, the model re-called book_call and wrote the apology twice.
+- `mark_escalated` failure after issue created → still report ticket: otherwise visitor sees error and retries into a duplicate issue.
+- accepted risk: one ticket per chat means a spammer can open one issue per new chat, bounded only by 60 msgs/day per IP; add per-IP daily escalation cap if the handoff repo gets noisy.
