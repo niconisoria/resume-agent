@@ -16,3 +16,7 @@
 - deploy `concurrency.cancel-in-progress: false`: cancelling mid `flyctl deploy` can leave a half-rolled machine; queued runs still collapse to newest.
 - changed-file detection is a shell `case` over `git diff`, not a paths-filter action: no third-party action with repo access; unknown `before` (first/force push) deploys rather than silently skipping.
 - action pins ≥2 weeks old (`setup-uv@v10.2.0`, not same-day `v10.3.2`): fresh releases are where supply-chain compromises land.
+- ingest embeds all changed chunks in one batched Voyage call: account without payment method returns 429 after ~3 requests/min (hit live with per-file calls); add payment method if knowledge grows past 128 chunks per run.
+- ingest wraps migration + embedding + writes in one transaction: Voyage failure mid-run (live 429) left DB untouched; embedding inside txn holds it open briefly, fine for a manual CLI.
+- `messages.id` is uuid, not bigserial: S13 feedback receives `message_id` from the browser, so ids must not be enumerable.
+- run ingest as `python -m scripts.ingest`, not `python scripts/ingest.py`: script-path mode puts `scripts/` on sys.path and `import app` fails.
