@@ -25,3 +25,7 @@
 - empty assistant replies never saved: API rejects empty assistant content, so one empty row would break every later turn of that chat.
 - `start_turn` before `StreamingResponse`: refusals (turn cap 429, DB 503) need real status codes, impossible once SSE 200 headers are sent.
 - local dev `.env` points at the same Neon DB as prod: local test chats land in prod tables; clean up or use a Neon branch before analytics (S18) matter.
+- retrieval floor `MIN_SIMILARITY = 0.25`, not 0.3: live stubs gave relevant best hits 0.28–0.51 vs off-topic ≤ 0.20; 0.3 dropped "What is his education?". Whole-file stub chunks dilute scores — retune on real KB (M5).
+- citations parsed from `[n]` markers in final text, not "all retrieved docs": lists only sources the answer actually used; matches groundedness eval (S16).
+- Haiku with thinking off sometimes writes a preamble ("I'll check…") before tool calls despite prompt rule; kept (paragraph-break join) — track in evals (S16) rather than enable thinking.
+- tool `eager_input_streaming` off: single short `query` string, buffering costs nothing; input still validated before search.

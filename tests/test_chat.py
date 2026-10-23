@@ -1,4 +1,3 @@
-import json
 import os
 import subprocess
 import sys
@@ -9,16 +8,9 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
+from tests.helpers import frames
 
 http = TestClient(app)
-
-
-def frames(res):
-    return [
-        json.loads(part.removeprefix("data: "))
-        for part in res.text.split("\n\n")
-        if part.startswith("data: ")
-    ]
 
 
 def test_reply_streams_as_multiple_text_frames(model):

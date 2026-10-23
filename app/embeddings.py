@@ -7,6 +7,11 @@ MODEL = "voyage-4"
 BATCH = 128
 
 
+def to_pgvector(values: list[float]) -> str:
+    """Text literal for a `%s::vector` parameter."""
+    return "[" + ",".join(map(str, values)) + "]"
+
+
 def embed(texts: list[str], input_type: str) -> list[list[float]]:
     """Voyage embeddings; input_type is "document" at ingest, "query" at search."""
     headers = {"Authorization": f"Bearer {os.environ['VOYAGE_API_KEY']}"}

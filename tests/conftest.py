@@ -19,8 +19,15 @@ def reset_rate_limits():
 
 
 class FakeStream:
-    def __init__(self, chunks=(), error=None, stop_reason="end_turn"):
-        self.chunks, self.error, self.stop_reason = chunks, error, stop_reason
+    """One scripted model response: text chunks, optional tool calls."""
+
+    def __init__(self, chunks=(), error=None, stop_reason=None, tool_calls=()):
+        self.chunks, self.error = chunks, error
+        self.tool_calls = [
+            SimpleNamespace(type="tool_use", id=f"tu_{i}", name=name, input=args)
+            for i, (name, args) in enumerate(tool_calls)
+        ]
+        self.stop_reason = stop_reason or ("tool_use" if tool_calls else "end_turn")
 
     async def __aenter__(self):
         return self
@@ -39,30 +46,57 @@ class FakeStream:
             raise self.error
 
     async def get_final_message(self):
-        return SimpleNamespace(stop_reason=self.stop_reason)
+        text = (
+            [SimpleNamespace(type="text", text="".join(self.chunks))]
+            if self.chunks
+            else []
+        )
+        return SimpleNamespace(
+            stop_reason=self.stop_reason, content=text + self.tool_calls
+        )
 
 
 class FakeClient:
-    def __init__(self, stream):
+    """Plays scripted turns in order; the last one repeats."""
+
+    def __init__(self, turns):
         self.calls = []
-        self._stream = stream
+        self._turns = turns
         self.messages = SimpleNamespace(stream=self._open)
 
     def _open(self, **kwargs):
-        self.calls.append(kwargs)
-        return self._stream
+        # Snapshot: the agent keeps appending to the same list.
+        self.calls.append({**kwargs, "messages": list(kwargs["messages"])})
+        return FakeStream(**self._turns[min(len(self.calls), len(self._turns)) - 1])
 
 
 @pytest.fixture
 def model(monkeypatch):
     from app import agent  # lazy: env above must be set before app imports
 
-    def install(**kwargs):
-        fake = FakeClient(FakeStream(**kwargs))
+    def install(turns=None, **turn):
+        fake = FakeClient(turns or [turn])
         monkeypatch.setattr(agent, "client", fake)
         return fake
 
     return install
+
+
+@pytest.fixture(autouse=True)
+def fake_search(monkeypatch):
+    """Default: knowledge search finds nothing. Set `.hits` to script results."""
+    from app import retrieval
+
+    state = SimpleNamespace(hits=[], queries=[], error=None, real=retrieval.search)
+
+    async def search(query):
+        state.queries.append(query)
+        if state.error:
+            raise state.error
+        return state.hits
+
+    monkeypatch.setattr(retrieval, "search", search)
+    return state
 
 
 class FakeDB:

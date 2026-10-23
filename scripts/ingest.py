@@ -11,7 +11,7 @@ from pathlib import Path
 import psycopg
 from psycopg.types.json import Jsonb
 
-from app.embeddings import embed
+from app.embeddings import embed, to_pgvector
 
 ROOT = Path(__file__).resolve().parent.parent
 KNOWLEDGE_DIR = ROOT / "knowledge"
@@ -71,10 +71,6 @@ def plan(files: dict[str, str], existing: dict[str, str]) -> dict[str, list[str]
     }
 
 
-def _vector(values: list[float]) -> str:
-    return "[" + ",".join(map(str, values)) + "]"
-
-
 def _write_document(conn, path, title, sha, pieces, vectors) -> None:
     doc_id = conn.execute(
         "insert into documents (path, title, metadata, updated_at)"
@@ -89,7 +85,7 @@ def _write_document(conn, path, title, sha, pieces, vectors) -> None:
         conn.execute(
             "insert into chunks (document_id, content, embedding, position)"
             " values (%s, %s, %s::vector, %s)",
-            (doc_id, content, _vector(vector), position),
+            (doc_id, content, to_pgvector(vector), position),
         )
 
 
