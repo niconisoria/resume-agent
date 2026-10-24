@@ -8,11 +8,15 @@ MAX_TURNS = 20
 
 # Neon's pooled endpoint is PgBouncer in transaction mode: no prepared statements.
 # timeout: fail fast (503) when Neon is unreachable; still covers a cold-start wake (~1s).
+# Neon suspends after 5 idle minutes and closes every connection: `check` replaces dead
+# ones on checkout, `max_idle` recycles idle ones before the suspend.
 pool = AsyncConnectionPool(
     DATABASE_URL,
     min_size=1,
     max_size=5,
     timeout=5,
+    check=AsyncConnectionPool.check_connection,
+    max_idle=240,
     open=False,
     kwargs={"prepare_threshold": None},
 )

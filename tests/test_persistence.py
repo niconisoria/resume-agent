@@ -123,3 +123,14 @@ def test_save_failure_still_finishes_stream(model, fake_db, monkeypatch):
     assert out[0] == {"text": "ok"}
     assert out[-1]["message_id"] is None
     assert out[-1]["conversation_id"]
+
+
+def test_pool_survives_neon_sleep():
+    from psycopg_pool import AsyncConnectionPool
+
+    from app import db
+
+    # Dead connections (Neon closed them while idle) are detected before use...
+    assert db.pool._check == AsyncConnectionPool.check_connection
+    # ...and idle ones are recycled before Neon's 5-minute suspend closes them.
+    assert db.pool.max_idle < 300
