@@ -1,3 +1,4 @@
+import json
 import logging
 import re
 import uuid
@@ -6,7 +7,7 @@ from dataclasses import dataclass, field
 
 import anthropic
 
-from app import db, handoff, retrieval
+from app import db, handoff, retrieval, tracing
 from app.config import ANTHROPIC_API_KEY, CALENDAR_URL, CV_URLS
 
 MODEL = "claude-haiku-5-5"
@@ -119,7 +120,10 @@ ESCALATE_TOOL = {
 
 TOOLS = [SEARCH_TOOL, BOOK_CALL_TOOL, GET_CV_TOOL, ESCALATE_TOOL]
 
-client = anthropic.AsyncAnthropic(api_key=ANTHROPIC_API_KEY)
+# open_telemetry off: OpenInference already traces every call (Phoenix-native LLM
+# spans); the SDK's own spans would double each request and its token counts.
+CLIENT_OPTIONS = {"api_key": ANTHROPIC_API_KEY, "open_telemetry": False}
+client = anthropic.AsyncAnthropic(**CLIENT_OPTIONS)
 
 
 class ReplyRefused(Exception):
@@ -261,10 +265,21 @@ HANDLERS = {
 
 async def _run_tool(call, turn: Turn) -> dict:
     turn.tools.append(call.name)
-    handler = HANDLERS.get(call.name)
-    if handler is None:
-        return _result(call, f"Unknown tool: {call.name}", error=True)
-    return await handler(call, turn)
+    with tracing.tracer.start_as_current_span(
+        f"tool.{call.name}",
+        attributes={
+            tracing.KIND: "TOOL",
+            tracing.TOOL_NAME: call.name,
+            tracing.INPUT: json.dumps(call.input, ensure_ascii=False),
+        },
+    ) as span:
+        handler = HANDLERS.get(call.name)
+        if handler is None:
+            result = _result(call, f"Unknown tool: {call.name}", error=True)
+        else:
+            result = await handler(call, turn)
+        span.set_attribute(tracing.OUTPUT, result["content"])
+        return result
 
 
 def _citations(text: str, hits: list[retrieval.Hit]) -> list[dict]:

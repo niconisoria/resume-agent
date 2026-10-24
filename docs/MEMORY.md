@@ -49,3 +49,7 @@
 - `budget_exceeded` events carry no conversation_id: the client-sent id is unverified on this path and the events FK would reject unknown ids, dropping the row.
 - `DAILY_BUDGET_USD` is the only optional setting (default 2): a missing cap shouldn't stop the app booting; prod value set explicitly in `fly.toml`.
 - pool `check=check_connection` + `max_idle=240` + `timeout=10`: Neon closes connections on 5-min scale-to-zero; without check the first request after idle got a dead connection (503, prod 2026-10-24). Wake measured ~5s live, so 5s timeout was too tight.
+- tracing built on plain OTel SDK, not `phoenix.otel.register()`: register hides its exporter, and the email-redacting exporter must wrap it.
+- `AsyncAnthropic(open_telemetry=False)`: anthropic 2.x emits its own spans when a tracer provider exists; with OpenInference too, every LLM call (and its tokens) appeared twice in Phoenix (seen live).
+- Phoenix Cloud free space can answer 503 while waking; batch exporter retries then drops — traces from that window are lost by design, chat unaffected.
+- Phoenix project `niconisoria-resume-agent` exists in the space but isn't used by this app (prod writes `resume-agent`); safe to delete.

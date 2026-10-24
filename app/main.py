@@ -13,7 +13,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field, field_validator
 from slowapi.errors import RateLimitExceeded
 
-from app import analytics, budget, db
+from app import analytics, budget, db, tracing
 from app.agent import ReplyRefused, Turn, booking_card, cv_card, stream_reply
 from app.config import ALLOWED_ORIGIN, IP_HASH_SALT
 from app.handoff import redact_emails
@@ -46,10 +46,12 @@ TURN_LIMIT_ERROR = (
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    tracing.setup()
     await db.pool.open()
     yield
     await analytics.drain()
     await db.pool.close()
+    tracing.shutdown()
 
 
 app = FastAPI(title="resume-agent", lifespan=lifespan)
@@ -93,7 +95,31 @@ def ip_hash(ip: str) -> str:
 async def chat_events(
     conversation_id: uuid.UUID, message: str, history: list[dict], escalated: bool
 ):
+    """One trace per reply: root `chat` span; LLM and tool spans nest under it."""
     parts: list[str] = []
+    with tracing.tracer.start_as_current_span(
+        "chat",
+        attributes={
+            tracing.KIND: "CHAIN",
+            tracing.SESSION_ID: str(conversation_id),
+            tracing.INPUT: message,
+        },
+    ) as span:
+        async for frame in _reply_frames(
+            conversation_id, message, history, escalated, parts
+        ):
+            yield frame
+        span.set_attribute(tracing.OUTPUT, "".join(parts))
+
+
+async def _reply_frames(
+    conversation_id: uuid.UUID,
+    message: str,
+    history: list[dict],
+    escalated: bool,
+    parts: list[str],
+):
+    """SSE frames for one reply; appends streamed text to `parts` for the root span."""
     done: dict = {"citations": [], "cards": []}
     turn = Turn(conversation_id=conversation_id, escalated=escalated)
     message_id = None

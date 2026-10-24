@@ -7,6 +7,7 @@ primary_region = "fra"
   CV_URL_EN = "https://niconisoria.github.io/resume/nicolas-nisoria.pdf"
   CV_URL_PL = "https://niconisoria.github.io/resume/nicolas-nisoria-pl.pdf"
   DAILY_BUDGET_USD = "2"
+  PHOENIX_PROJECT_NAME = "resume-agent"
 
 [http_service]
   internal_port = 8000
