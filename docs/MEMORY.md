@@ -52,7 +52,7 @@
 - tracing built on plain OTel SDK, not `phoenix.otel.register()`: register hides its exporter, and the email-redacting exporter must wrap it.
 - `AsyncAnthropic(open_telemetry=False)`: anthropic 2.x emits its own spans when a tracer provider exists; with OpenInference too, every LLM call (and its tokens) appeared twice in Phoenix (seen live).
 - Phoenix Cloud free space can answer 503 while waking; batch exporter retries then drops — traces from that window are lost by design, chat unaffected.
-- Phoenix project `niconisoria-resume-agent` exists in the space but isn't used by this app (prod writes `resume-agent`); safe to delete.
+- Phoenix keys are space-wide, not per project: a project is created on first span carrying a new `openinference.project.name` (set by `PHOENIX_PROJECT_NAME`). Projects: `resume-agent` (prod), `resume-agent-dev` (local + evals), `evaluators` (Phoenix experiment runner); deleting needs the UI (app key gets 403).
 - eval latency excludes Voyage 429 retry waits: free-tier pauses (21s each) showed as 45s cases in first live run, which measured the rate limit, not the agent.
 - Phoenix experiment replays precomputed rows (task/evaluators read results dict): cases run under our own sandbox + pacing, Phoenix only records; dataset named by golden.jsonl hash so experiments stay comparable.
 - eval baseline k09 'What is Clank?' misses: skills.md mentions Clank but whole-file stub chunk scores below 0.25 floor — expected to resolve with M5 real knowledge + floor retune.
