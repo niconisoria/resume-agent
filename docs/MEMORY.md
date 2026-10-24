@@ -57,3 +57,7 @@
 - Phoenix experiment replays precomputed rows (task/evaluators read results dict): cases run under our own sandbox + pacing, Phoenix only records; dataset named by golden.jsonl hash so experiments stay comparable.
 - eval baseline k09 'What is Clank?' misses: skills.md mentions Clank but whole-file stub chunk scores below 0.25 floor — expected to resolve with M5 real knowledge + floor retune.
 - FastAPI(telemetry={exclude /health, operation_spans: False}): FastAPI 0.158 traces every request natively; Fly's 30s health checks were ~96% of prod traces (~250k spans/month vs ~25k free tier).
+- CI eval DB access = read-only role `ci_reader` (SELECT on documents, chunks): eval must not be able to write live tables even if a future code path escapes the Python stubs.
+- CI eval trigger excludes `knowledge/`: CI never re-ingests, so eval would score stale embeddings; after knowledge edits run ingest + eval locally.
+- deploy skips unless its sha is current main tip: eval duration varies (Voyage retries), so concurrency group alone could deploy an older commit after a newer one.
+- `gh` run under `uv run --env-file .env` picks up the handoff repo's `GITHUB_TOKEN` (403 on repo secrets); strip GITHUB_TOKEN/GH_TOKEN from gh's env.

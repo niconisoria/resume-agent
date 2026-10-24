@@ -19,9 +19,140 @@ jobs:
       - run: uv run ruff format --check .
       - run: uv run pytest
 
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      app: ${{ steps.diff.outputs.app }}
+      eval: ${{ steps.diff.outputs.eval }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Detect changed areas
+        id: diff
+        env:
+          # PR: base...head (the PR's own changes). Push: before..sha.
+          BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          HEAD: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          RANGE: ${{ github.event_name == 'pull_request' && '...' || '..' }}
+        run: |
+          # First push, force push or unknown base: treat everything as changed.
+          if ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
+            echo "app=true" >> "$GITHUB_OUTPUT"
+            echo "eval=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          app=false
+          eval=false
+          # -z + read -d '': paths with spaces or glob characters stay intact.
+          while IFS= read -r -d '' f; do
+            case "$f" in
+              app/*|Dockerfile|fly.toml|pyproject.toml|uv.lock) app=true ;;
+            esac
+            # knowledge/ is not here: CI never re-ingests, so the eval would score
+            # the embeddings already in Neon. Ingest + eval locally instead.
+            case "$f" in
+              app/*|evals/*|pyproject.toml|uv.lock) eval=true ;;
+            esac
+          done < <(git diff --name-only -z "$BASE$RANGE$HEAD")
+          echo "app=$app" >> "$GITHUB_OUTPUT"
+          echo "eval=$eval" >> "$GITHUB_OUTPUT"
+          echo "app changed: $app, eval needed: $eval"
+
+  eval:
+    needs: [check, changes]
+    if: needs.changes.outputs.eval == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      # The committed REPORT.md is from a past run; it must never be shown as this
+      # run's result, even when a later step fails.
+      - name: Clear stale report
+        run: rm -f evals/REPORT.md
+
+      - name: Require eval secrets
+        env:
+          CI_ANTHROPIC_API_KEY: ${{ secrets.CI_ANTHROPIC_API_KEY }}
+          VOYAGE_API_KEY: ${{ secrets.VOYAGE_API_KEY }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          PHOENIX_COLLECTOR_ENDPOINT: ${{ secrets.PHOENIX_COLLECTOR_ENDPOINT }}
+          PHOENIX_API_KEY: ${{ secrets.PHOENIX_API_KEY }}
+        run: |
+          missing=""
+          for name in CI_ANTHROPIC_API_KEY VOYAGE_API_KEY DATABASE_URL PHOENIX_COLLECTOR_ENDPOINT PHOENIX_API_KEY; do
+            [ -n "${!name}" ] || missing="$missing $name"
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::Eval secrets missing:$missing. The eval did not run; this is not a pass."
+            exit 1
+          fi
+
+      - uses: astral-sh/setup-uv@v10.2.0
+      - run: uv sync --frozen
+
+      - name: Run eval suite
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.CI_ANTHROPIC_API_KEY }}
+          VOYAGE_API_KEY: ${{ secrets.VOYAGE_API_KEY }}
+          # Read-only role (ci_reader): the eval cannot write to the live database.
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          PHOENIX_COLLECTOR_ENDPOINT: ${{ secrets.PHOENIX_COLLECTOR_ENDPOINT }}
+          PHOENIX_API_KEY: ${{ secrets.PHOENIX_API_KEY }}
+          PHOENIX_PROJECT_NAME: resume-agent-dev
+          # Config the app requires at import; the eval never serves HTTP or files tickets.
+          ALLOWED_ORIGIN: https://niconisoria.github.io
+          IP_HASH_SALT: ci-placeholder
+          CALENDAR_URL: https://example.com/book
+          CV_URL_EN: https://example.com/cv-en.pdf
+          CV_URL_PL: https://example.com/cv-pl.pdf
+          GITHUB_TOKEN: ci-placeholder
+          GITHUB_HANDOFF_REPO: ci/placeholder
+        run: uv run python -m evals.run_evals
+
+      - name: Report to job summary
+        if: always()
+        run: |
+          if [ -f evals/REPORT.md ]; then
+            cat evals/REPORT.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Eval produced no report (see job log)." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Sticky PR comment
+        # Fork PRs get a read-only token; commenting there would 403.
+        if: >-
+          always() && github.event_name == 'pull_request' &&
+          github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          marker='<!-- eval-report -->'
+          report=$(cat evals/REPORT.md 2>/dev/null || echo "Eval produced no report (see job log).")
+          body=$(printf '%s\n%s\n' "$marker" "$report")
+          id=$(gh api "repos/$REPO/issues/$PR/comments" --paginate \
+            --jq ".[] | select(.user.login == \"github-actions[bot]\" and (.body | startswith(\"$marker\"))) | .id" | head -1)
+          if [ -n "$id" ]; then
+            gh api -X PATCH "repos/$REPO/issues/comments/$id" -f body="$body" > /dev/null
+          else
+            gh api -X POST "repos/$REPO/issues/$PR/comments" -f body="$body" > /dev/null
+          fi
+
   deploy:
-    needs: check
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [check, changes, eval]
+    # always(): run even though `eval` may be skipped; then gate explicitly.
+    if: >-
+      always() &&
+      github.event_name == 'push' && github.ref == 'refs/heads/main' &&
+      needs.check.result == 'success' &&
+      needs.changes.outputs.app == 'true' &&
+      (needs.eval.result == 'success' || needs.eval.result == 'skipped')
     runs-on: ubuntu-latest
     # Running deploy finishes; older queued runs are replaced by the newest.
     concurrency:
@@ -31,38 +162,33 @@ jobs:
       APP_URL: https://niconisoria-resume-agent.fly.dev
     steps:
       - uses: actions/checkout@v7.0.1
-        with:
-          fetch-depth: 0
 
-      - name: Detect app changes
-        id: changes
+      # Eval time varies (Voyage retries), so an older run can reach this point
+      # after a newer one. Only the commit at the tip of main may deploy.
+      - name: Skip if superseded
+        id: latest
         env:
-          BEFORE: ${{ github.event.before }}
+          GH_TOKEN: ${{ github.token }}
         run: |
-          # First push, force push or unknown base: deploy to be safe.
-          if ! git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
-            echo "deploy=true" >> "$GITHUB_OUTPUT"; exit 0
+          tip=$(gh api "repos/${{ github.repository }}/commits/main" --jq .sha)
+          if [ "$tip" = "$GITHUB_SHA" ]; then
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "deploy=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Superseded by $tip; skipping deploy of $GITHUB_SHA."
           fi
-          for f in $(git diff --name-only "$BEFORE" "$GITHUB_SHA"); do
-            case "$f" in
-              app/*|Dockerfile|fly.toml|pyproject.toml|uv.lock)
-                echo "deploy=true" >> "$GITHUB_OUTPUT"; exit 0 ;;
-            esac
-          done
-          echo "deploy=false" >> "$GITHUB_OUTPUT"
-          echo "No app files changed; skipping deploy."
 
       - uses: superfly/flyctl-actions/setup-flyctl@1.5
-        if: steps.changes.outputs.deploy == 'true'
+        if: steps.latest.outputs.deploy == 'true'
 
       - name: Deploy
-        if: steps.changes.outputs.deploy == 'true'
+        if: steps.latest.outputs.deploy == 'true'
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
         run: flyctl deploy --remote-only --ha=false
 
       - name: Smoke check /health
-        if: steps.changes.outputs.deploy == 'true'
+        if: steps.latest.outputs.deploy == 'true'
         run: |
           for _ in $(seq 1 12); do
             code=$(curl -s -o /dev/null -w '%{http_code}' "$APP_URL/health" || true)
@@ -72,7 +198,7 @@ jobs:
           echo "/health not 200 (last: $code)"; exit 1
 
       - name: Exactly one machine
-        if: steps.changes.outputs.deploy == 'true'
+        if: steps.latest.outputs.deploy == 'true'
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
         run: |
