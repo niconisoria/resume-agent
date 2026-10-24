@@ -134,6 +134,10 @@ class Turn:
     transcript: list[dict] = field(default_factory=list)
     escalated: bool = False
     hits: list[retrieval.Hit] = field(default_factory=list)
+    input_tokens: int = 0
+    output_tokens: int = 0
+    tools: list[str] = field(default_factory=list)
+    ticket: int | None = None
     cards: dict[tuple[str, str], dict] = field(default_factory=dict)
 
     def add_card(self, card: dict) -> str:
@@ -229,6 +233,7 @@ async def _escalate(call, turn: Turn) -> dict:
             error=True,
         )
     turn.escalated = True
+    turn.ticket = number
     try:
         await db.mark_escalated(turn.conversation_id)
     except Exception:
@@ -249,6 +254,7 @@ HANDLERS = {
 
 
 async def _run_tool(call, turn: Turn) -> dict:
+    turn.tools.append(call.name)
     handler = HANDLERS.get(call.name)
     if handler is None:
         return _result(call, f"Unknown tool: {call.name}", error=True)
@@ -266,16 +272,15 @@ def _citations(text: str, hits: list[retrieval.Hit]) -> list[dict]:
 
 
 async def stream_reply(
-    message: str,
-    history: list[dict],
-    conversation_id: uuid.UUID,
-    escalated: bool,
+    message: str, history: list[dict], turn: Turn
 ) -> AsyncIterator[dict]:
-    """Tool loop. Yields {"text": chunk} events, then one {"citations", "cards"}."""
+    """Tool loop. Yields {"text": chunk} events, then one {"citations", "cards"}.
+
+    `turn` is owned by the caller, so token usage, tool calls and tickets stay
+    readable even when the reply fails midway.
+    """
     messages = [*history, {"role": "user", "content": message}]
-    turn = Turn(
-        conversation_id=conversation_id, transcript=messages[:], escalated=escalated
-    )
+    turn.transcript = messages[:]
     parts: list[str] = []
     used_tools = False
     for round_ in range(MAX_TOOL_ROUNDS + 1):
@@ -307,6 +312,8 @@ async def stream_reply(
                 parts.append(text)
                 yield {"text": text}
             final = await stream.get_final_message()
+        turn.input_tokens += final.usage.input_tokens
+        turn.output_tokens += final.usage.output_tokens
         if final.stop_reason == "refusal":
             raise ReplyRefused
         if final.stop_reason != "tool_use":

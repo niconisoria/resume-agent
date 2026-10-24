@@ -1,6 +1,7 @@
 import hashlib
 import json
 import logging
+import time
 import uuid
 from contextlib import asynccontextmanager
 
@@ -11,8 +12,8 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field, field_validator
 from slowapi.errors import RateLimitExceeded
 
-from app import db
-from app.agent import ReplyRefused, stream_reply
+from app import analytics, db
+from app.agent import ReplyRefused, Turn, stream_reply
 from app.config import ALLOWED_ORIGIN, IP_HASH_SALT
 from app.handoff import redact_emails
 from app.ratelimit import CHAT_LIMITS, client_ip, limiter, rate_limited
@@ -34,6 +35,7 @@ TURN_LIMIT_ERROR = (
 async def lifespan(_: FastAPI):
     await db.pool.open()
     yield
+    await analytics.drain()
     await db.pool.close()
 
 
@@ -78,10 +80,14 @@ async def chat_events(
 ):
     parts: list[str] = []
     done: dict = {"citations": [], "cards": []}
+    turn = Turn(conversation_id=conversation_id, escalated=escalated)
     message_id = None
+    started = time.perf_counter()
+    first_text_at = None
     try:
-        async for event in stream_reply(message, history, conversation_id, escalated):
+        async for event in stream_reply(message, history, turn):
             if "text" in event:
+                first_text_at = first_text_at or time.perf_counter()
                 parts.append(event["text"])
                 yield sse(event)
             else:
@@ -109,6 +115,40 @@ async def chat_events(
             "cards": done["cards"],
         }
     )
+    analytics.record(_events(turn, message_id, started, first_text_at))
+
+
+def _ms(start: float, end: float | None) -> int | None:
+    return None if end is None else round((end - start) * 1000)
+
+
+def _events(turn: Turn, message_id, started: float, first_text_at: float | None):
+    """Event rows for one reply: ids, names and numbers only, never text.
+
+    An `answer` row is written whenever the model spent tokens, so cost is counted
+    even for failed replies (`message_id` is then null).
+    """
+    cid = turn.conversation_id
+    rows = [
+        {"type": "tool_call", "conversation_id": cid, "tool_name": n}
+        for n in turn.tools
+    ]
+    if turn.ticket:
+        rows.append({"type": "escalation", "conversation_id": cid})
+    if turn.input_tokens or turn.output_tokens:
+        rows.append(
+            {
+                "type": "answer",
+                "conversation_id": cid,
+                "message_id": message_id,
+                "latency_ms": _ms(started, time.perf_counter()),
+                "first_token_ms": _ms(started, first_text_at),
+                "input_tokens": turn.input_tokens,
+                "output_tokens": turn.output_tokens,
+                "cost_usd": analytics.cost_usd(turn.input_tokens, turn.output_tokens),
+            }
+        )
+    return rows
 
 
 @app.post("/chat")
@@ -122,6 +162,9 @@ async def chat(request: Request, body: ChatIn):  # slowapi needs `request`
             redact_emails(body.message),
         )
     except db.TurnLimit:
+        analytics.record(
+            [{"type": "rate_limited", "conversation_id": body.conversation_id}]
+        )
         return JSONResponse(status_code=429, content={"error": TURN_LIMIT_ERROR})
     except Exception:
         log.exception("start_turn failed")

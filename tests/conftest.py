@@ -26,8 +26,11 @@ def reset_rate_limits():
 class FakeStream:
     """One scripted model response: text chunks, optional tool calls."""
 
-    def __init__(self, chunks=(), error=None, stop_reason=None, tool_calls=()):
+    def __init__(
+        self, chunks=(), error=None, stop_reason=None, tool_calls=(), usage=(100, 20)
+    ):
         self.chunks, self.error = chunks, error
+        self.usage = SimpleNamespace(input_tokens=usage[0], output_tokens=usage[1])
         self.tool_calls = [
             SimpleNamespace(type="tool_use", id=f"tu_{i}", name=name, input=args)
             for i, (name, args) in enumerate(tool_calls)
@@ -57,7 +60,9 @@ class FakeStream:
             else []
         )
         return SimpleNamespace(
-            stop_reason=self.stop_reason, content=text + self.tool_calls
+            stop_reason=self.stop_reason,
+            content=text + self.tool_calls,
+            usage=self.usage,
         )
 
 
@@ -170,4 +175,14 @@ def fake_issues(monkeypatch):
         return 42
 
     monkeypatch.setattr(handoff, "create_issue", create_issue)
+    return state
+
+
+@pytest.fixture(autouse=True)
+def fake_events(monkeypatch):
+    """Captures analytics.record rows instead of writing to the DB."""
+    from app import analytics
+
+    state = SimpleNamespace(rows=[], real=analytics.record)
+    monkeypatch.setattr(analytics, "record", lambda rows: state.rows.extend(rows))
     return state

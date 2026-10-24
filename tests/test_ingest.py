@@ -224,3 +224,16 @@ def test_all_changed_files_embedded_in_one_call(kb):
     ingest.run(FakeConn(), counting, kb)
     assert len(calls) == 1
     assert calls[0] >= 2
+
+
+def test_all_migrations_applied_in_name_order(kb):
+    conn = FakeConn()
+    ingest.run(conn, fake_embed, kb)
+    applied = [
+        s
+        for s, _ in conn.sql
+        if "create table if not exists documents" in s or "first_token_ms" in s
+    ]
+    assert len(applied) == 2
+    assert "create table if not exists documents" in applied[0]
+    assert "first_token_ms" in applied[1]

@@ -37,3 +37,7 @@
 - GitHub failure tool note says 'button already shown, call no other tool': live, the model re-called book_call and wrote the apology twice.
 - `mark_escalated` failure after issue created → still report ticket: otherwise visitor sees error and retries into a duplicate issue.
 - accepted risk: one ticket per chat means a spammer can open one issue per new chat, bounded only by 60 msgs/day per IP; add per-IP daily escalation cap if the handoff repo gets noisy.
+- `answer` row whenever tokens were spent, `message_id` null on failed reply: daily budget (S14) sums `cost_usd`, so failed/refused replies must count; resolution metrics (S18) must filter `message_id is not null`.
+- `rate_limited` exception handler is async: Starlette runs sync handlers in a threadpool where `asyncio.create_task` has no running loop.
+- `first_token_ms` ≈ `latency_ms` on replies without tool calls: text before first tool call is held back (S09), so it arrives in one frame at the end.
+- validation runs write test rows into prod `events`/`conversations` (local .env = prod Neon); exclude or delete before `/insights` (S18) numbers matter.

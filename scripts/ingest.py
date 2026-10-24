@@ -15,7 +15,7 @@ from app.embeddings import embed, to_pgvector
 
 ROOT = Path(__file__).resolve().parent.parent
 KNOWLEDGE_DIR = ROOT / "knowledge"
-MIGRATION = ROOT / "migrations" / "001_init.sql"
+MIGRATIONS_DIR = ROOT / "migrations"
 REQUIRED_ENV = ("DATABASE_URL", "VOYAGE_API_KEY")
 # ponytail: word count as token estimate (~0.75 words/token); real tokenizer if chunks misbehave.
 MAX_WORDS = 375
@@ -98,7 +98,8 @@ def run(conn, embedder, knowledge_dir: Path = KNOWLEDGE_DIR) -> dict[str, int]:
 
     # One transaction: any failure (embedding included) rolls everything back.
     with conn.transaction():
-        conn.execute(MIGRATION.read_text())
+        for migration in sorted(MIGRATIONS_DIR.glob("*.sql")):
+            conn.execute(migration.read_text())
         existing = dict(
             conn.execute("select path, metadata->>'sha256' from documents").fetchall()
         )
