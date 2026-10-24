@@ -44,3 +44,7 @@
 - feedback = one row per message via partial unique index + upsert (not append + 'latest wins'): concurrent votes can't duplicate; S18 counts rows directly.
 - per-IP 429 logs `rate_limited` only for `/chat`: shared slowapi handler also fires for `/feedback`; blocks metric is about chat.
 - migrations must be applied (`python -m scripts.ingest`) before deploying code that depends on them: app never migrates at boot; local .env = prod Neon.
+- budget check before `start_turn`: blocked messages must not count toward the 20-turn cap or be stored, so the visitor can continue the same chat tomorrow.
+- budget check fails closed (503) on DB error: with spend unknown, calling the model could blow past the cap.
+- `budget_exceeded` events carry no conversation_id: the client-sent id is unverified on this path and the events FK would reject unknown ids, dropping the row.
+- `DAILY_BUDGET_USD` is the only optional setting (default 2): a missing cap shouldn't stop the app booting; prod value set explicitly in `fly.toml`.

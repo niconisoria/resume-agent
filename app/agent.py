@@ -180,22 +180,28 @@ async def _search(call, turn: Turn) -> dict:
     return _result(call, "\n\n".join(lines))
 
 
+def booking_card() -> dict:
+    return {"type": "booking", "label": "Book a call with Nicolas", "url": CALENDAR_URL}
+
+
+def cv_card(language: str) -> dict:
+    return {
+        "type": "cv",
+        "label": f"Download CV ({language.upper()})",
+        "url": CV_URLS[language],
+        "language": language,
+    }
+
+
 async def _book_call(call, turn: Turn) -> dict:
-    card = {"type": "booking", "label": "Book a call with Nicolas", "url": CALENDAR_URL}
-    return _result(call, turn.add_card(card))
+    return _result(call, turn.add_card(booking_card()))
 
 
 async def _get_cv(call, turn: Turn) -> dict:
     language = _args(call).get("language")
     if language not in CV_URLS:
         return _result(call, 'language must be "en" or "pl".', error=True)
-    card = {
-        "type": "cv",
-        "label": f"Download CV ({language.upper()})",
-        "url": CV_URLS[language],
-        "language": language,
-    }
-    return _result(call, turn.add_card(card))
+    return _result(call, turn.add_card(cv_card(language)))
 
 
 async def _escalate(call, turn: Turn) -> dict:

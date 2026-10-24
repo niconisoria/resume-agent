@@ -9,3 +9,5 @@ CALENDAR_URL = os.environ["CALENDAR_URL"]
 CV_URLS = {"en": os.environ["CV_URL_EN"], "pl": os.environ["CV_URL_PL"]}
 GITHUB_TOKEN = os.environ["GITHUB_TOKEN"]
 GITHUB_HANDOFF_REPO = os.environ["GITHUB_HANDOFF_REPO"]
+# Only optional setting: a sane default beats refusing to boot.
+DAILY_BUDGET_USD = float(os.environ.get("DAILY_BUDGET_USD", "2"))

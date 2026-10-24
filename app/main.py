@@ -13,8 +13,8 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field, field_validator
 from slowapi.errors import RateLimitExceeded
 
-from app import analytics, db
-from app.agent import ReplyRefused, Turn, stream_reply
+from app import analytics, budget, db
+from app.agent import ReplyRefused, Turn, booking_card, cv_card, stream_reply
 from app.config import ALLOWED_ORIGIN, IP_HASH_SALT
 from app.handoff import redact_emails
 from app.ratelimit import (
@@ -29,6 +29,10 @@ log = logging.getLogger(__name__)
 
 MAX_MESSAGE_CHARS = 1000
 MESSAGE_ERROR = f"Message must be between 1 and {MAX_MESSAGE_CHARS:,} characters."
+BUDGET_REPLY = (
+    "Nicolas's assistant is resting for today. You can book a call with him "
+    "or grab his CV below."
+)
 RATING_ERROR = "Rating must be 1 (👍) or -1 (👎)."
 FIELD_ERRORS = {"message": MESSAGE_ERROR, "rating": RATING_ERROR}
 UNAVAILABLE_ERROR = (
@@ -162,9 +166,37 @@ def _events(turn: Turn, message_id, started: float, first_text_at: float | None)
     return rows
 
 
+async def budget_events(conversation_id: uuid.UUID | None):
+    """Fallback reply once the daily budget is spent: no model, nothing stored."""
+    yield sse({"text": BUDGET_REPLY})
+    yield sse(
+        {
+            "conversation_id": str(conversation_id) if conversation_id else None,
+            "message_id": None,
+            "citations": [],
+            "cards": [booking_card(), cv_card("en")],
+        }
+    )
+
+
 @app.post("/chat")
 @limiter.limit(CHAT_LIMITS)
 async def chat(request: Request, body: ChatIn):  # slowapi needs `request`
+    try:
+        blocked = await budget.over_budget()
+    except Exception:
+        # Spend unknown: fail closed, never call the model blind.
+        log.exception("budget check failed")
+        return JSONResponse(status_code=503, content={"error": UNAVAILABLE_ERROR})
+    if blocked:
+        # No conversation_id: the sent id is unverified here (events FK would reject
+        # unknown ids and drop the row), and the budget is global anyway.
+        analytics.record([{"type": "budget_exceeded"}])
+        return StreamingResponse(
+            budget_events(body.conversation_id),
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache"},
+        )
     try:
         # Emails go only to the handoff ticket, never into stored messages.
         conversation_id, history, status = await db.start_turn(

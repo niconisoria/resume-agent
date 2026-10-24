@@ -243,3 +243,9 @@ def test_feedback_unique_index_migration_applied(kb):
     conn = FakeConn()
     ingest.run(conn, fake_embed, kb)
     assert conn.writes("events_feedback_message_idx")
+
+
+def test_events_created_at_index_migration_applied(kb):
+    conn = FakeConn()
+    ingest.run(conn, fake_embed, kb)
+    assert conn.writes("events_created_at_idx")

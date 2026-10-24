@@ -102,3 +102,14 @@ async def save_feedback(message_id: uuid.UUID, rating: int) -> bool:
             (rating, message_id),
         )
         return cur.rowcount == 1
+
+
+async def spent_today() -> float:
+    """Model spend (USD) since the start of the current UTC day."""
+    async with pool.connection() as conn:
+        cur = await conn.execute(
+            "select coalesce(sum(cost_usd), 0) from events"
+            " where created_at >= date_trunc('day', now() at time zone 'utc')"
+            " at time zone 'utc'"
+        )
+        return float((await cur.fetchone())[0])

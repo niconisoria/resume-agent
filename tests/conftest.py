@@ -14,6 +14,7 @@ os.environ["CV_URL_EN"] = "https://cv.example/en.pdf"
 os.environ["CV_URL_PL"] = "https://cv.example/pl.pdf"
 os.environ["GITHUB_TOKEN"] = "test-gh-token"
 os.environ["GITHUB_HANDOFF_REPO"] = "owner/handoffs"
+os.environ["DAILY_BUDGET_USD"] = "2"
 
 
 @pytest.fixture(autouse=True)
@@ -116,6 +117,7 @@ class FakeDB:
         self.conversations = {}  # id -> {"ip_hash", "turns"}
         self.messages = []  # (conversation_id, role, content, message_id)
         self.feedback = {}  # message_id -> rating (latest vote only)
+        self.spent = 0.0  # today's spend in USD
         self.down = False
 
     async def start_turn(self, conversation_id, ip_hash, text):
@@ -141,6 +143,11 @@ class FakeDB:
         conv["turns"] += 1
         self.messages.append((conversation_id, "user", text, uuid.uuid4()))
         return conversation_id, history, conv["status"]
+
+    async def spent_today(self):
+        if self.down:
+            raise ConnectionError("db down")
+        return self.spent
 
     async def save_feedback(self, message_id, rating):
         if self.down:
@@ -168,6 +175,7 @@ def fake_db(monkeypatch):
     monkeypatch.setattr(db, "save_reply", fake.save_reply)
     monkeypatch.setattr(db, "mark_escalated", fake.mark_escalated)
     monkeypatch.setattr(db, "save_feedback", fake.save_feedback)
+    monkeypatch.setattr(db, "spent_today", fake.spent_today)
     return fake
 
 
