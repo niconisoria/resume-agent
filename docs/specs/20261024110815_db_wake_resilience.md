@@ -1,6 +1,6 @@
 ---
 title: DB Wake Resilience
-status: design
+status: implemented
 refs: [20261023023115_conversation_persistence.md]
 ---
 
@@ -21,7 +21,7 @@ AC:
 
 ## Design
 
-- `app/db.py` pool: `check=AsyncConnectionPool.check_connection` (validate on checkout, reconnect if dead) + `max_idle=240` (close idle conns before Neon's 300s suspend). Existing `timeout=5` covers cold wake (~1s).
+- `app/db.py` pool: `check=AsyncConnectionPool.check_connection` (validate on checkout, reconnect if dead) + `max_idle=240` (close idle conns before Neon's 300s suspend). `timeout` raised 5 → 10s: live first request after 7 min idle took 5.18s (at old limit).
 - No retry loops; no keep-alive pings.
 
 ### Flow
@@ -44,3 +44,9 @@ output: same responses; no 503 after idle
 
 - `app/db.py` — pool `check`, `max_idle`
 - `tests/test_persistence.py` — pool config assertions
+
+[db.py](app/db.py) [test_persistence.py](tests/test_persistence.py)
+
+## Summary
+
+Pool validates connections on checkout (`check_connection`) and recycles idle ones at 240s, so Neon's scale-to-zero no longer hands requests a dead connection. Live: request after 7 min idle → normal 404 (was 503 `SSL connection has been closed unexpectedly`), 5.18s; pool `timeout` raised to 10s for wake headroom.

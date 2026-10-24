@@ -98,10 +98,11 @@ def test_storage_outage_gives_readable_error_without_model_call(model, fake_db):
     assert fake.calls == []
 
 
-def test_db_outage_fails_fast():
+def test_db_timeout_covers_neon_wake_but_still_fails():
     from app import db
 
-    assert db.pool.timeout <= 5
+    # Neon wake measured ~5s live; 10s leaves headroom, outage still ends in 503.
+    assert 5 < db.pool.timeout <= 10
 
 
 def test_empty_reply_not_saved(model, fake_db):

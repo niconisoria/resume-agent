@@ -48,3 +48,4 @@
 - budget check fails closed (503) on DB error: with spend unknown, calling the model could blow past the cap.
 - `budget_exceeded` events carry no conversation_id: the client-sent id is unverified on this path and the events FK would reject unknown ids, dropping the row.
 - `DAILY_BUDGET_USD` is the only optional setting (default 2): a missing cap shouldn't stop the app booting; prod value set explicitly in `fly.toml`.
+- pool `check=check_connection` + `max_idle=240` + `timeout=10`: Neon closes connections on 5-min scale-to-zero; without check the first request after idle got a dead connection (503, prod 2026-10-24). Wake measured ~5s live, so 5s timeout was too tight.
