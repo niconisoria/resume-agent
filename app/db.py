@@ -84,3 +84,21 @@ async def save_reply(conversation_id: uuid.UUID, text: str) -> uuid.UUID:
             (conversation_id, text),
         )
         return (await cur.fetchone())[0]
+
+
+async def save_feedback(message_id: uuid.UUID, rating: int) -> bool:
+    """Store the latest vote for an assistant message; False if no such message.
+
+    Upsert on the partial unique index (migration 003): one row per message,
+    a re-vote replaces the rating atomically.
+    """
+    async with pool.connection() as conn:
+        cur = await conn.execute(
+            "insert into events (type, conversation_id, message_id, rating)"
+            " select 'feedback', conversation_id, id, %s from messages"
+            " where id = %s and role = 'assistant'"
+            " on conflict (message_id) where type = 'feedback'"
+            " do update set rating = excluded.rating, created_at = now()",
+            (rating, message_id),
+        )
+        return cur.rowcount == 1

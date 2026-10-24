@@ -9,6 +9,7 @@ from slowapi.errors import RateLimitExceeded
 from app import analytics
 
 CHAT_LIMITS = "10/minute;60/day"
+FEEDBACK_LIMITS = "30/minute"
 
 
 def client_ip(request: Request) -> str:
@@ -24,7 +25,8 @@ async def rate_limited(request: Request, _: RateLimitExceeded) -> JSONResponse:
     limit, keys = request.state.view_rate_limit
     reset_at = limiter.limiter.get_window_stats(limit, *keys).reset_time
     retry = max(1, math.ceil(reset_at - time.time()))
-    analytics.record([{"type": "rate_limited"}])
+    if request.url.path == "/chat":  # blocks metric counts chat only, not feedback
+        analytics.record([{"type": "rate_limited"}])
     return JSONResponse(
         status_code=429,
         content={"error": f"Too many messages. Please try again in {retry} seconds."},

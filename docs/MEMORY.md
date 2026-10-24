@@ -41,3 +41,6 @@
 - `rate_limited` exception handler is async: Starlette runs sync handlers in a threadpool where `asyncio.create_task` has no running loop.
 - `first_token_ms` ≈ `latency_ms` on replies without tool calls: text before first tool call is held back (S09), so it arrives in one frame at the end.
 - validation runs write test rows into prod `events`/`conversations` (local .env = prod Neon); exclude or delete before `/insights` (S18) numbers matter.
+- feedback = one row per message via partial unique index + upsert (not append + 'latest wins'): concurrent votes can't duplicate; S18 counts rows directly.
+- per-IP 429 logs `rate_limited` only for `/chat`: shared slowapi handler also fires for `/feedback`; blocks metric is about chat.
+- migrations must be applied (`python -m scripts.ingest`) before deploying code that depends on them: app never migrates at boot; local .env = prod Neon.

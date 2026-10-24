@@ -237,3 +237,9 @@ def test_all_migrations_applied_in_name_order(kb):
     assert len(applied) == 2
     assert "create table if not exists documents" in applied[0]
     assert "first_token_ms" in applied[1]
+
+
+def test_feedback_unique_index_migration_applied(kb):
+    conn = FakeConn()
+    ingest.run(conn, fake_embed, kb)
+    assert conn.writes("events_feedback_message_idx")

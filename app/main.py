@@ -4,6 +4,7 @@ import logging
 import time
 import uuid
 from contextlib import asynccontextmanager
+from typing import Literal
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -16,12 +17,20 @@ from app import analytics, db
 from app.agent import ReplyRefused, Turn, stream_reply
 from app.config import ALLOWED_ORIGIN, IP_HASH_SALT
 from app.handoff import redact_emails
-from app.ratelimit import CHAT_LIMITS, client_ip, limiter, rate_limited
+from app.ratelimit import (
+    CHAT_LIMITS,
+    FEEDBACK_LIMITS,
+    client_ip,
+    limiter,
+    rate_limited,
+)
 
 log = logging.getLogger(__name__)
 
 MAX_MESSAGE_CHARS = 1000
 MESSAGE_ERROR = f"Message must be between 1 and {MAX_MESSAGE_CHARS:,} characters."
+RATING_ERROR = "Rating must be 1 (👍) or -1 (👎)."
+FIELD_ERRORS = {"message": MESSAGE_ERROR, "rating": RATING_ERROR}
 UNAVAILABLE_ERROR = (
     "Sorry, the assistant can't answer right now. Please try again later."
 )
@@ -62,8 +71,10 @@ class ChatIn(BaseModel):
 
 @app.exception_handler(RequestValidationError)
 async def validation_error(_: Request, exc: RequestValidationError):
-    on_message = any(err["loc"][-1] == "message" for err in exc.errors())
-    error = MESSAGE_ERROR if on_message else "Invalid request."
+    fields = [err["loc"][-1] for err in exc.errors()]
+    error = next(
+        (FIELD_ERRORS[f] for f in fields if f in FIELD_ERRORS), "Invalid request."
+    )
     return JSONResponse(status_code=422, content={"error": error})
 
 
@@ -174,6 +185,24 @@ async def chat(request: Request, body: ChatIn):  # slowapi needs `request`
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache"},
     )
+
+
+class FeedbackIn(BaseModel):
+    message_id: uuid.UUID
+    rating: Literal[1, -1]
+
+
+@app.post("/feedback")
+@limiter.limit(FEEDBACK_LIMITS)
+async def feedback(request: Request, body: FeedbackIn):  # slowapi needs `request`
+    try:
+        saved = await db.save_feedback(body.message_id, body.rating)
+    except Exception:
+        log.exception("save_feedback failed")
+        return JSONResponse(status_code=503, content={"error": UNAVAILABLE_ERROR})
+    if not saved:
+        return JSONResponse(status_code=404, content={"error": "Answer not found."})
+    return {"status": "saved"}
 
 
 @app.get("/health")

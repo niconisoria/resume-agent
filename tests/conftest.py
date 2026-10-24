@@ -115,6 +115,7 @@ class FakeDB:
     def __init__(self):
         self.conversations = {}  # id -> {"ip_hash", "turns"}
         self.messages = []  # (conversation_id, role, content, message_id)
+        self.feedback = {}  # message_id -> rating (latest vote only)
         self.down = False
 
     async def start_turn(self, conversation_id, ip_hash, text):
@@ -141,6 +142,14 @@ class FakeDB:
         self.messages.append((conversation_id, "user", text, uuid.uuid4()))
         return conversation_id, history, conv["status"]
 
+    async def save_feedback(self, message_id, rating):
+        if self.down:
+            raise ConnectionError("db down")
+        if not any(m[3] == message_id and m[1] == "assistant" for m in self.messages):
+            return False
+        self.feedback[message_id] = rating
+        return True
+
     async def mark_escalated(self, conversation_id):
         self.conversations[conversation_id]["status"] = "escalated"
 
@@ -158,6 +167,7 @@ def fake_db(monkeypatch):
     monkeypatch.setattr(db, "start_turn", fake.start_turn)
     monkeypatch.setattr(db, "save_reply", fake.save_reply)
     monkeypatch.setattr(db, "mark_escalated", fake.mark_escalated)
+    monkeypatch.setattr(db, "save_feedback", fake.save_feedback)
     return fake
 
 
