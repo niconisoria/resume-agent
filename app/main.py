@@ -54,7 +54,16 @@ async def lifespan(_: FastAPI):
     tracing.shutdown()
 
 
-app = FastAPI(title="resume-agent", lifespan=lifespan)
+app = FastAPI(
+    title="resume-agent",
+    lifespan=lifespan,
+    telemetry={
+        # Fly health checks every 30s would flood Phoenix (and its free-tier quota).
+        "exclude": lambda scope: scope.get("path") == "/health",
+        # Dependency/endpoint spans add noise; chat, LLM and tool spans carry the signal.
+        "operation_spans": False,
+    },
+)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, rate_limited)
 app.add_middleware(

@@ -126,3 +126,17 @@ def test_sdk_tracing_off_so_llm_calls_not_doubled():
     from app import agent
 
     assert agent.CLIENT_OPTIONS["open_telemetry"] is False
+
+
+def test_health_checks_not_traced(spans):
+    assert http.get("/health").status_code == 200
+    names = [s.name for s in spans.get_finished_spans()]
+    assert not any("health" in n for n in names), names
+
+
+def test_fastapi_operation_spans_off(model, spans):
+    model(chunks=["hi"])
+    http.post("/chat", json={"message": "hi"})
+    names = {s.name for s in spans.get_finished_spans()}
+    assert "chat" in names
+    assert not {"fastapi.endpoint", "fastapi.dependencies"} & names

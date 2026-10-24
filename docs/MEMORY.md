@@ -56,3 +56,4 @@
 - eval latency excludes Voyage 429 retry waits: free-tier pauses (21s each) showed as 45s cases in first live run, which measured the rate limit, not the agent.
 - Phoenix experiment replays precomputed rows (task/evaluators read results dict): cases run under our own sandbox + pacing, Phoenix only records; dataset named by golden.jsonl hash so experiments stay comparable.
 - eval baseline k09 'What is Clank?' misses: skills.md mentions Clank but whole-file stub chunk scores below 0.25 floor — expected to resolve with M5 real knowledge + floor retune.
+- FastAPI(telemetry={exclude /health, operation_spans: False}): FastAPI 0.158 traces every request natively; Fly's 30s health checks were ~96% of prod traces (~250k spans/month vs ~25k free tier).
