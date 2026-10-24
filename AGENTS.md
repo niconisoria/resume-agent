@@ -30,7 +30,7 @@
 | Test          | `uv run pytest`                                                |
 | Lint          | `uv run ruff check .`                                          |
 | Format        | `uv run ruff format .`                                         |
-| Evals         | `uv run python evals/run_evals.py`                             |
+| Evals         | `uv run --env-file .env python -m evals.run_evals`             |
 | Ingest        | `uv run --env-file .env python -m scripts.ingest`              |
 | Ship          | CI on push to `main` (`.github/workflows/ci.yml`); fallback `fly deploy --ha=false` |
 
