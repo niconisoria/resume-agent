@@ -47,7 +47,7 @@ Details: [docs/architecture.md](docs/architecture.md). Decision log: [docs/MEMOR
 
 ## Why these choices
 
-- **No agent framework.** Four tools and a loop capped at four rounds fit in plain Anthropic SDK code. Streaming maps directly to the widget's SSE format, traces show the real LLM and tool spans, and every step is readable in [app/agent.py](app/agent.py).
+- **No agent framework.** Four tools and a loop capped at four rounds fit in plain Anthropic SDK code. Streaming maps directly to the widget's SSE format, traces show the real LLM and tool spans, and every step is readable in [app/agent.py](app/agent.py) (the loop) and [app/tools.py](app/tools.py) (the four tools).
 - **Fly.io, not serverless.** Rate limits live in memory, which is only correct with exactly one long-lived process. Background work after a reply (event writes, topic labels) finishes, the same image runs locally and in prod, and `Fly-Client-IP` can be trusted.
 - **GitHub Issues as the handoff queue.** Open/closed state, labels and email notifications with no new account or service. The repo is private because issues hold transcripts and contact emails.
 
