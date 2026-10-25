@@ -103,11 +103,23 @@ def ip_hash(ip: str) -> str:
     return hashlib.sha256(f"{ip}{IP_HASH_SALT}".encode()).hexdigest()
 
 
+def _ms(start: float, end: float | None) -> int | None:
+    return None if end is None else round((end - start) * 1000)
+
+
 async def chat_events(
     conversation_id: uuid.UUID, message: str, history: list[dict], escalated: bool
 ):
-    """One trace per reply: root `chat` span; LLM and tool spans nest under it."""
+    """SSE frames for one reply, then its event rows.
+
+    One trace per reply: root `chat` span; LLM and tool spans nest under it.
+    """
+    turn = Turn(conversation_id=conversation_id, escalated=escalated)
+    done: dict = {"citations": [], "cards": []}
     parts: list[str] = []
+    message_id = None
+    started = time.perf_counter()
+    first_text_at = None
     with tracing.tracer.start_as_current_span(
         "chat",
         attributes={
@@ -116,95 +128,47 @@ async def chat_events(
             tracing.INPUT: message,
         },
     ) as span:
-        async for frame in _reply_frames(
-            conversation_id, message, history, escalated, parts
-        ):
-            yield frame
-        span.set_attribute(tracing.OUTPUT, "".join(parts))
-
-
-async def _reply_frames(
-    conversation_id: uuid.UUID,
-    message: str,
-    history: list[dict],
-    escalated: bool,
-    parts: list[str],
-):
-    """SSE frames for one reply; appends streamed text to `parts` for the root span."""
-    done: dict = {"citations": [], "cards": []}
-    turn = Turn(conversation_id=conversation_id, escalated=escalated)
-    message_id = None
-    started = time.perf_counter()
-    first_text_at = None
-    try:
-        async for event in stream_reply(message, history, turn):
-            if "text" in event:
-                first_text_at = first_text_at or time.perf_counter()
-                parts.append(event["text"])
-                yield sse(event)
-            else:
-                done = event
-    except ReplyRefused:
-        yield sse({"error": REFUSAL_ERROR})
-    except Exception:
-        # HTTP 200 already sent: any failure must surface as a frame, never a dead stream.
-        log.exception("reply stream failed")
-        yield sse({"error": UNAVAILABLE_ERROR})
-    else:
-        reply = "".join(parts)
-        # Empty assistant turns are rejected by the API and would break the chat.
-        if reply.strip():
-            try:
-                message_id = await db.save_reply(conversation_id, redact_emails(reply))
-            except Exception:
-                log.exception("save_reply failed")
-    # Always last: the widget keeps the chat id even when the reply failed.
-    yield sse(
-        {
-            "conversation_id": str(conversation_id),
-            "message_id": str(message_id) if message_id else None,
-            "citations": done["citations"],
-            "cards": done["cards"],
-        }
-    )
-    analytics.record(
-        _events(turn, message_id, started, first_text_at), redact_emails(message)
-    )
-
-
-def _ms(start: float, end: float | None) -> int | None:
-    return None if end is None else round((end - start) * 1000)
-
-
-def _events(turn: Turn, message_id, started: float, first_text_at: float | None):
-    """Event rows for one reply: ids, names and numbers only, never text.
-
-    An `answer` row is written whenever the model spent tokens, so cost is counted
-    even for failed replies (`message_id` is then null).
-    """
-    cid = turn.conversation_id
-    rows = [
-        {"type": "tool_call", "conversation_id": cid, "tool_name": n}
-        for n in turn.tools
-    ]
-    if turn.ticket:
-        rows.append({"type": "escalation", "conversation_id": cid})
-    if turn.input_tokens or turn.output_tokens:
-        rows.append(
+        try:
+            async for event in stream_reply(message, history, turn):
+                if "text" in event:
+                    first_text_at = first_text_at or time.perf_counter()
+                    parts.append(event["text"])
+                    yield sse(event)
+                else:
+                    done = event
+        except ReplyRefused:
+            yield sse({"error": REFUSAL_ERROR})
+        except Exception:
+            # HTTP 200 already sent: any failure must surface as a frame, never a dead stream.
+            log.exception("reply stream failed")
+            yield sse({"error": UNAVAILABLE_ERROR})
+        else:
+            reply = "".join(parts)
+            # Empty assistant turns are rejected by the API and would break the chat.
+            if reply.strip():
+                try:
+                    message_id = await db.save_reply(
+                        conversation_id, redact_emails(reply)
+                    )
+                except Exception:
+                    log.exception("save_reply failed")
+        # Always last: the widget keeps the chat id even when the reply failed.
+        yield sse(
             {
-                "type": "answer",
-                "conversation_id": cid,
-                "message_id": message_id,
-                "latency_ms": _ms(started, time.perf_counter()),
-                "first_token_ms": _ms(started, first_text_at),
-                "input_tokens": turn.input_tokens,
-                "output_tokens": turn.output_tokens,
-                "cost_usd": analytics.cost_usd(turn.input_tokens, turn.output_tokens),
-                # Searched, but nothing cleared the similarity floor.
-                "no_hits": "search_knowledge" in turn.tools and not turn.hits,
+                "conversation_id": str(conversation_id),
+                "message_id": str(message_id) if message_id else None,
+                "citations": done["citations"],
+                "cards": done["cards"],
             }
         )
-    return rows
+        rows = analytics.reply_rows(
+            turn,
+            message_id,
+            latency_ms=_ms(started, time.perf_counter()),
+            first_token_ms=_ms(started, first_text_at),
+        )
+        analytics.record(rows, redact_emails(message))
+        span.set_attribute(tracing.OUTPUT, "".join(parts))
 
 
 async def budget_events(conversation_id: uuid.UUID | None):

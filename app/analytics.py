@@ -2,11 +2,13 @@ import asyncio
 import datetime as dt
 import logging
 import time
+import uuid
 from typing import Literal, get_args
 
 from pydantic import BaseModel
 
 from app import agent, db
+from app.tools import Turn
 
 log = logging.getLogger(__name__)
 
@@ -39,6 +41,42 @@ def cost_usd(input_tokens: int, output_tokens: int) -> float:
     return (
         input_tokens * HAIKU_INPUT_PER_MTOK + output_tokens * HAIKU_OUTPUT_PER_MTOK
     ) / 1_000_000
+
+
+def reply_rows(
+    turn: Turn,
+    message_id: uuid.UUID | None,
+    latency_ms: int,
+    first_token_ms: int | None,
+) -> list[dict]:
+    """Event rows for one reply: ids, names and numbers only, never text.
+
+    An `answer` row is written whenever the model spent tokens, so cost is counted
+    even for failed replies (`message_id` is then null).
+    """
+    cid = turn.conversation_id
+    rows = [
+        {"type": "tool_call", "conversation_id": cid, "tool_name": n}
+        for n in turn.tools
+    ]
+    if turn.ticket:
+        rows.append({"type": "escalation", "conversation_id": cid})
+    if turn.input_tokens or turn.output_tokens:
+        rows.append(
+            {
+                "type": "answer",
+                "conversation_id": cid,
+                "message_id": message_id,
+                "latency_ms": latency_ms,
+                "first_token_ms": first_token_ms,
+                "input_tokens": turn.input_tokens,
+                "output_tokens": turn.output_tokens,
+                "cost_usd": cost_usd(turn.input_tokens, turn.output_tokens),
+                # Searched, but nothing cleared the similarity floor.
+                "no_hits": "search_knowledge" in turn.tools and not turn.hits,
+            }
+        )
+    return rows
 
 
 Topic = Literal[
