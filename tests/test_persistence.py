@@ -3,19 +3,8 @@ import uuid
 
 import anthropic
 import httpx2
-from fastapi.testclient import TestClient
 
-from app.main import app
-from tests.helpers import frames
-
-http = TestClient(app)
-
-
-def chat(message, conversation_id=None, ip="1.1.1.1"):
-    body = {"message": message}
-    if conversation_id:
-        body["conversation_id"] = str(conversation_id)
-    return http.post("/chat", json=body, headers={"Fly-Client-IP": ip})
+from tests.helpers import chat, frames
 
 
 def test_first_message_ends_with_chat_and_message_ids(model, fake_db):

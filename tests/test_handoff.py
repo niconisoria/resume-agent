@@ -2,13 +2,9 @@ import asyncio
 import uuid
 
 import httpx2
-from fastapi.testclient import TestClient
 
 from app import agent, handoff, tools
-from app.main import app
-from tests.helpers import frames
-
-http = TestClient(app)
+from tests.helpers import chat, frames
 
 ARGS = {
     "summary": "Wants to know about relocation plans",
@@ -24,10 +20,7 @@ def escalate(**overrides):
 def ask(
     message="Please have Nicolas reach me at ana@example.com", conversation_id=None
 ):
-    body = {"message": message}
-    if conversation_id:
-        body["conversation_id"] = str(conversation_id)
-    return frames(http.post("/chat", json=body))
+    return frames(chat(message, conversation_id))
 
 
 def note(fake, call_index=1):

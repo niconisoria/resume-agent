@@ -6,13 +6,9 @@ from decimal import Decimal
 from types import SimpleNamespace
 
 import pytest
-from fastapi.testclient import TestClient
 
 from app import agent, analytics
-from app.main import app
-from tests.helpers import frames
-
-http = TestClient(app)
+from tests.helpers import ask, http
 
 
 @pytest.fixture(autouse=True)
@@ -147,10 +143,6 @@ def test_no_label_call_without_answer_row(monkeypatch, pool, fake_events):
 
 
 # --- chat wiring ----------------------------------------------------------------
-
-
-def ask(message):
-    return frames(http.post("/chat", json={"message": message}))
 
 
 def answer_row(fake_events):

@@ -1,16 +1,13 @@
 import logging
 
 import pytest
-from fastapi.testclient import TestClient
 from opentelemetry import trace
 from opentelemetry.sdk.trace.export import SpanExportResult
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
 from app import tracing
-from app.main import app
-from tests.helpers import frames
+from tests.helpers import frames, http
 
-http = TestClient(app)
 _memory = InMemorySpanExporter()
 _installed = False
 

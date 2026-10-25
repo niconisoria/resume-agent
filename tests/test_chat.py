@@ -5,12 +5,8 @@ import sys
 import anthropic
 import httpx2
 import pytest
-from fastapi.testclient import TestClient
 
-from app.main import app
-from tests.helpers import frames
-
-http = TestClient(app)
+from tests.helpers import frames, http
 
 
 def test_reply_streams_as_multiple_text_frames(model):

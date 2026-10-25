@@ -1,19 +1,7 @@
 import uuid
 
-from fastapi.testclient import TestClient
-
 from app import budget
-from app.main import app
-from tests.helpers import frames
-
-http = TestClient(app)
-
-
-def chat(message="hi", conversation_id=None):
-    body = {"message": message}
-    if conversation_id:
-        body["conversation_id"] = str(conversation_id)
-    return http.post("/chat", json=body)
+from tests.helpers import chat, frames
 
 
 def test_under_budget_answers_normally(model, fake_db):

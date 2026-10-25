@@ -1,18 +1,11 @@
 import uuid
 
-from fastapi.testclient import TestClient
-
-from app.main import app
-from tests.helpers import frames
-
-http = TestClient(app)
+from tests.helpers import ask, http
 
 
 def answer(model, ip="5.5.5.5"):
     model(chunks=["An answer."])
-    final = frames(
-        http.post("/chat", json={"message": "hi"}, headers={"Fly-Client-IP": ip})
-    )[-1]
+    final = ask(ip=ip)[-1]
     return uuid.UUID(final["message_id"])
 
 
