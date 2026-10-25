@@ -4,7 +4,7 @@ import uuid
 import httpx2
 from fastapi.testclient import TestClient
 
-from app import agent, handoff
+from app import agent, handoff, tools
 from app.main import app
 from tests.helpers import frames
 
@@ -167,8 +167,8 @@ def test_create_issue_posts_labelled_issue_to_handoff_repo(monkeypatch, fake_iss
 
 
 def test_prompt_and_tools_cover_escalation():
-    assert "escalate_to_human" in [t["name"] for t in agent.TOOLS]
-    schema = next(t for t in agent.TOOLS if t["name"] == "escalate_to_human")[
+    assert "escalate_to_human" in [t["name"] for t in tools.TOOLS]
+    schema = next(t for t in tools.TOOLS if t["name"] == "escalate_to_human")[
         "input_schema"
     ]
     assert schema["required"] == ["summary", "reason", "contact_email"]

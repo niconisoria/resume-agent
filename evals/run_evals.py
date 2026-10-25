@@ -20,7 +20,7 @@ import anthropic
 import httpx2
 from pydantic import BaseModel
 
-from app import agent, analytics, db, handoff, retrieval, tracing
+from app import agent, analytics, db, handoff, retrieval, tools, tracing
 from app.config import ANTHROPIC_API_KEY
 
 log = logging.getLogger("evals")
@@ -86,7 +86,7 @@ def _sandboxed():
 
 async def run_case(case: dict) -> dict:
     """One golden question through the real agent loop; nothing stored."""
-    turn = agent.Turn()
+    turn = tools.Turn()
     parts: list[str] = []
     started = time.perf_counter()
     _waited[0] = 0.0
