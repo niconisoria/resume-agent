@@ -37,7 +37,7 @@ A conversational agent on Nicolas's site (`niconisoria.github.io`). It answers q
                  ├── events / messages ──► Neon Postgres
                  └── traces ──► Phoenix Cloud (OpenInference)
 
- GitHub Actions: lint + tests on PR/push, deploy to Fly on main, Phoenix eval experiment on PR
+ GitHub Actions: lint + tests + eval gate on PR/push; deploy to Fly on main after both pass
 ```
 
 ---
@@ -54,7 +54,7 @@ A conversational agent on Nicolas's site (`niconisoria.github.io`). It answers q
 | Queue / handoff | **GitHub Issues** in a private repo (`resume-agent-handoffs`), REST API with a fine-grained token |
 | Observability + evals | **Arize Phoenix Cloud** (free), OpenInference Anthropic instrumentation, `arize-phoenix-evals` |
 | Rate limiting | `slowapi` in-memory (valid only because there is one instance) + daily budget check in Postgres |
-| CI/CD | GitHub Actions: lint + tests on every PR and push; on `main` deploy to Fly (deploy token secret) after checks pass, then `/health` smoke check; eval experiment on PR |
+| CI/CD | GitHub Actions: lint + tests on every PR and push; eval gate when `app/`, `evals/` or dependencies change; on `main` deploy to Fly (deploy token secret) after both pass, then `/health` smoke check |
 
 **Deliberately not used:** Redis, Turnstile/captcha, LangChain/LlamaIndex/LangGraph, a BI tool, self-hosted Phoenix, auth. Add only if a real need appears.
 
@@ -83,9 +83,10 @@ Two repos:
 ```
 resume-agent/
   app/
-    main.py            # FastAPI app, routes, CORS, rate limits
-    agent.py           # tool-use loop, system prompt, streaming
-    tools.py           # tool schemas + implementations
+    main.py            # FastAPI app, routes, CORS
+    agent.py           # tool-use loop, system prompt, tool schemas + handlers, streaming
+    ratelimit.py       # slowapi limits, 429 handler
+    embeddings.py      # Voyage client (retry on 429)
     retrieval.py       # embed query, pgvector search
     handoff.py         # create handoff GitHub issue
     budget.py          # daily cost check
@@ -94,14 +95,17 @@ resume-agent/
     config.py          # settings from env
     tracing.py         # Phoenix / OpenInference setup
   knowledge/           # markdown knowledge base (start with 2-3 stubs)
-  scripts/ingest.py    # chunk + embed + upsert knowledge/
+  scripts/
+    ingest.py          # apply migrations, chunk + embed + upsert knowledge/
+    purge_before.py    # one-off cleanup of rows before a cutoff
   evals/
     golden.jsonl
     run_evals.py       # Phoenix experiment
     REPORT.md
-  migrations/001_init.sql
+  migrations/          # 001_init.sql … numbered plain SQL
   tests/
-  docs/
+  docs/                # architecture, runbook, decision log, specs
+  README.md
   Dockerfile
   fly.toml
   .github/workflows/ci.yml
@@ -162,8 +166,8 @@ Not used: fixed-size windows with overlap, semantic chunking. Fallback if retrie
 - `documents(id, path, title, metadata jsonb, updated_at)`
 - `chunks(id, document_id, content, embedding vector(1024), position)`
 - `conversations(id uuid, ip_hash, status text default 'open', turns int, created_at)`
-- `messages(id, conversation_id, role, content, created_at)`
-- `events(id, conversation_id, message_id, type, topic, tool_name, latency_ms, input_tokens, output_tokens, cost_usd, rating, created_at)`
+- `messages(id uuid, conversation_id, role, content, created_at)`
+- `events(id, conversation_id, message_id, type, topic, tool_name, latency_ms, first_token_ms, input_tokens, output_tokens, cost_usd, rating, no_hits, created_at)`
   - `type`: `answer`, `tool_call`, `escalation`, `feedback`, `rate_limited`, `budget_exceeded`
 
 **Privacy:** store `sha256(ip + salt)` only; emails go to the private handoff repo, never Postgres; 90-day retention (scheduled delete can come last). One-line notice in the widget.
@@ -197,7 +201,7 @@ Mix: ~15 knowledge, ~4 tool-routing ("can we talk?", "send me the CV"), ~3 out-o
 | Decline correctness: declines exactly when `should_decline` | LLM judge | ≥ 0.9 |
 | Latency and cost per case | measured | reported only |
 
-Runs as a Phoenix experiment on PRs touching `app/`, `knowledge/` or `evals/`; CI fails below threshold. Results written to `evals/REPORT.md`.
+Runs as a Phoenix experiment on PRs and pushes to `main` touching `app/`, `evals/` or dependencies; CI fails below threshold and blocks the deploy. Knowledge edits are not covered (CI never re-ingests): ingest and run the eval locally. Results written to `evals/REPORT.md`.
 
 ---
 
@@ -233,7 +237,7 @@ CV_URL_EN=
 CV_URL_PL=
 ```
 
-Secrets live in Fly secrets (prod) and a git-ignored `.env` (local).
+Secrets live in Fly secrets (prod) and a git-ignored `.env` (local). Public values (`ALLOWED_ORIGIN`, `CALENDAR_URL`, `CV_URL_*`, `DAILY_BUDGET_USD`, `PHOENIX_PROJECT_NAME`) live in `fly.toml [env]`. Operations: [runbook.md](runbook.md).
 
 ---
 

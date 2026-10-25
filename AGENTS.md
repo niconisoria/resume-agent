@@ -40,14 +40,18 @@
 
 ```
 resume-agent/
+├── README.md
 ├── CLAUDE.md              ← you are here (symlink → AGENTS.md)
 ├── docs/
 │   ├── architecture.md    ← stack, API contract, data model, guardrails, evals
+│   ├── runbook.md         ← deploy, secrets, limits, re-ingest, handoff triage
+│   ├── MEMORY.md          ← decision log (why, not what)
 │   └── specs/             ← one .md per feature (brainstorm → stories → flows → impl)
 ├── app/
-│   ├── main.py            ← FastAPI app, routes, CORS, rate limits
-│   ├── agent.py           ← tool-use loop, system prompt, streaming
-│   ├── tools.py           ← tool schemas + implementations
+│   ├── main.py            ← FastAPI app, routes, CORS
+│   ├── agent.py           ← tool-use loop, system prompt, tool schemas + handlers
+│   ├── ratelimit.py       ← slowapi limits, 429 handler
+│   ├── embeddings.py      ← Voyage client
 │   ├── retrieval.py       ← embed query, pgvector search
 │   ├── handoff.py         ← create handoff GitHub issue
 │   ├── budget.py          ← daily cost check
@@ -56,7 +60,7 @@ resume-agent/
 │   ├── config.py          ← settings from env
 │   └── tracing.py         ← Phoenix / OpenInference setup
 ├── knowledge/             ← markdown knowledge base
-├── scripts/ingest.py      ← chunk + embed + upsert knowledge/
+├── scripts/               ← ingest.py (migrate + embed knowledge/), purge_before.py
 ├── evals/                 ← golden.jsonl, run_evals.py, REPORT.md
 ├── migrations/            ← plain SQL, numbered (001_init.sql)
 ├── tests/
@@ -97,6 +101,7 @@ Conventional Commits, caveman style: `<type>(<scope>): <imperative summary>`, �
 ## Docs
 
 - [docs/architecture.md](docs/architecture.md) — design, decisions, guardrails, eval thresholds
+- [docs/runbook.md](docs/runbook.md) — operations
 - [docs/specs/](docs/specs/) — feature specs (start here for any new work)
 - [FastAPI](https://fastapi.tiangolo.com/)
 - [Anthropic tool use](https://docs.claude.com/en/docs/agents-and-tools/tool-use/overview)
