@@ -15,6 +15,7 @@ from opentelemetry.sdk.trace.export import (
     SpanExporter,
     SpanExportResult,
 )
+from opentelemetry.trace import Status
 
 from app.handoff import redact_emails
 
@@ -74,7 +75,8 @@ class RedactingExporter(SpanExporter):
             ],
             links=span.links,
             kind=span.kind,
-            status=span.status,
+            # Status description repeats the exception message on error spans.
+            status=Status(span.status.status_code, _redact(span.status.description)),
             start_time=span.start_time,
             end_time=span.end_time,
             instrumentation_scope=span.instrumentation_scope,
