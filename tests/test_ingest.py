@@ -176,7 +176,7 @@ def test_missing_env_exits_before_any_io(monkeypatch, missing):
 def test_starter_knowledge_files_exist_without_email():
     root = ingest.KNOWLEDGE_DIR
     files = sorted(p.relative_to(root).as_posix() for p in root.rglob("*.md"))
-    assert files == ["profile.md", "roles/vention.md", "skills.md"]
+    assert {"profile.md", "roles/vention.md", "skills.md"} <= set(files)
     for p in root.rglob("*.md"):
         assert "@" not in p.read_text()
 

@@ -6,10 +6,10 @@
 {"id": "k06", "category": "knowledge", "question": "Which certifications does he hold?", "expected_sources": ["profile.md", "skills.md"], "expected_tool": "search_knowledge", "should_decline": false}
 {"id": "k07", "category": "knowledge", "question": "Which web frameworks has he used professionally?", "expected_sources": ["skills.md"], "expected_tool": "search_knowledge", "should_decline": false}
 {"id": "k08", "category": "knowledge", "question": "Does he have hands-on experience with AI agents?", "expected_sources": ["skills.md", "profile.md", "roles/vention.md"], "expected_tool": "search_knowledge", "should_decline": false}
-{"id": "k09", "category": "knowledge", "question": "What is Clank?", "expected_sources": ["skills.md"], "expected_tool": "search_knowledge", "should_decline": false}
+{"id": "k09", "category": "knowledge", "question": "What is Clank?", "expected_sources": ["projects/clank.md", "skills.md"], "expected_tool": "search_knowledge", "should_decline": false}
 {"id": "k10", "category": "knowledge", "question": "Has he worked with AWS?", "expected_sources": ["roles/vention.md", "skills.md"], "expected_tool": "search_knowledge", "should_decline": false}
 {"id": "k11", "category": "knowledge", "question": "Which companies has he worked for?", "expected_sources": ["profile.md"], "expected_tool": "search_knowledge", "should_decline": false}
-{"id": "k12", "category": "knowledge", "question": "When was he at GlobalLogic and in what role?", "expected_sources": ["profile.md"], "expected_tool": "search_knowledge", "should_decline": false}
+{"id": "k12", "category": "knowledge", "question": "When was he at GlobalLogic and in what role?", "expected_sources": ["roles/globallogic.md", "profile.md"], "expected_tool": "search_knowledge", "should_decline": false}
 {"id": "k13", "category": "knowledge", "question": "Does he know Python?", "expected_sources": ["skills.md"], "expected_tool": "search_knowledge", "should_decline": false}
 {"id": "k14", "category": "knowledge", "question": "What tech stack did he use at Vention?", "expected_sources": ["roles/vention.md"], "expected_tool": "search_knowledge", "should_decline": false}
 {"id": "k15", "category": "knowledge", "question": "How does he use monitoring tools like Sentry?", "expected_sources": ["roles/vention.md"], "expected_tool": "search_knowledge", "should_decline": false}
