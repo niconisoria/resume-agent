@@ -49,7 +49,8 @@ resume-agent/
 │   └── specs/             ← one .md per feature (brainstorm → stories → flows → impl)
 ├── app/
 │   ├── main.py            ← FastAPI app, routes, CORS
-│   ├── agent.py           ← tool-use loop, system prompt, tool schemas + handlers
+│   ├── agent.py           ← system prompt, streaming tool-use loop
+│   ├── tools.py           ← tool schemas, handlers, cards, per-reply Turn state
 │   ├── ratelimit.py       ← slowapi limits, 429 handler
 │   ├── embeddings.py      ← Voyage client
 │   ├── retrieval.py       ← embed query, pgvector search

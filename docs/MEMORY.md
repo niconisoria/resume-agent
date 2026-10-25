@@ -66,3 +66,5 @@
 - `/insights` conversations = answered OR escalated chats: escalation whose reply then failed would otherwise push `resolved_share` below 0.
 - `/insights` cache is per-process memory, no stale fallback: valid with one Fly machine; DB error returns 503 rather than serve expired numbers.
 - prod data reset 2026-10-25T02:54:28Z (`scripts.purge_before`); local .env still = prod Neon, so local chats count in `/insights` again — use a Neon dev branch for local work.
+- reply event rows recorded in `finally` of the chat stream: closing the tab mid-reply cancels the generator (not an `Exception`), and before the fix spent tokens never reached the daily budget. Usage is only known per finished model round, so a round cut off mid-stream still goes uncounted; Console monthly limit is the backstop.
+- handoff issue fences summary and reason, not just the transcript: both are model-written from visitor text, so unfenced they could inject markdown or @mentions into the queue.
