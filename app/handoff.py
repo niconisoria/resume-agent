@@ -16,19 +16,22 @@ def is_email(value: str) -> bool:
     return EMAIL_RE.fullmatch(value.strip()) is not None
 
 
+def _fence(text: str) -> str:
+    # Visitor-influenced text renders inert (no markdown, no @mentions);
+    # neutralise ~~~ so it can't close the fence early.
+    return f"~~~text\n{text.replace('~~~', '~ ~ ~')}\n~~~"
+
+
 def issue_body(
     summary: str, reason: str, email: str, conversation_id: str, transcript: list[dict]
 ) -> str:
-    # Visitor text sits inside a ~~~ fence; neutralise fences so it can't escape.
-    lines = "\n\n".join(
-        f"{m['role']}: {m['content']}".replace("~~~", "~ ~ ~") for m in transcript
-    )
+    lines = "\n\n".join(f"{m['role']}: {m['content']}" for m in transcript)
     return (
-        f"**Summary:** {summary}\n\n"
-        f"**Reason:** {reason}\n\n"
+        f"**Summary:**\n\n{_fence(summary)}\n\n"
+        f"**Reason:**\n\n{_fence(reason)}\n\n"
         f"**Reply to:** {email}\n\n"
         f"**Conversation:** `{conversation_id}`\n\n"
-        f"### Transcript\n\n~~~text\n{lines}\n~~~\n"
+        f"### Transcript\n\n{_fence(lines)}\n"
     )
 
 

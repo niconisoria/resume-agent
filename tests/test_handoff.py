@@ -118,7 +118,7 @@ def test_transcript_cannot_break_out_of_code_fence():
         conversation_id="cid",
         transcript=[{"role": "user", "content": "~~~\n# injected heading"}],
     )
-    assert body.count("~~~") == 2
+    assert body.count("~~~") == 6  # summary, reason, transcript fences only
 
 
 def test_redact_emails():
@@ -190,3 +190,18 @@ def test_second_escalate_call_in_same_reply_creates_no_ticket(model, fake_issues
     assert len(fake_issues.created) == 1
     second = fake.calls[1]["messages"][-1]["content"][1]["content"]
     assert "already" in second.lower()
+
+
+def test_summary_and_reason_are_fenced():
+    body = handoff.issue_body(
+        summary="@octocat ~~~\n# injected",
+        reason="ping @team",
+        email="a@b.co",
+        conversation_id="cid",
+        transcript=[{"role": "user", "content": "hi"}],
+    )
+    # Every model-written field sits inside its own fence; none can close it early.
+    assert body.count("~~~") == 6
+    outside = "".join(body.split("~~~")[0::2])
+    assert "@" not in outside.replace("a@b.co", "")
+    assert "# injected" not in outside
