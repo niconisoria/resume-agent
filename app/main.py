@@ -129,46 +129,50 @@ async def chat_events(
         },
     ) as span:
         try:
-            async for event in stream_reply(message, history, turn):
-                if "text" in event:
-                    first_text_at = first_text_at or time.perf_counter()
-                    parts.append(event["text"])
-                    yield sse(event)
-                else:
-                    done = event
-        except ReplyRefused:
-            yield sse({"error": REFUSAL_ERROR})
-        except Exception:
-            # HTTP 200 already sent: any failure must surface as a frame, never a dead stream.
-            log.exception("reply stream failed")
-            yield sse({"error": UNAVAILABLE_ERROR})
-        else:
-            reply = "".join(parts)
-            # Empty assistant turns are rejected by the API and would break the chat.
-            if reply.strip():
-                try:
-                    message_id = await db.save_reply(
-                        conversation_id, redact_emails(reply)
-                    )
-                except Exception:
-                    log.exception("save_reply failed")
-        # Always last: the widget keeps the chat id even when the reply failed.
-        yield sse(
-            {
-                "conversation_id": str(conversation_id),
-                "message_id": str(message_id) if message_id else None,
-                "citations": done["citations"],
-                "cards": done["cards"],
-            }
-        )
-        rows = analytics.reply_rows(
-            turn,
-            message_id,
-            latency_ms=_ms(started, time.perf_counter()),
-            first_token_ms=_ms(started, first_text_at),
-        )
-        analytics.record(rows, redact_emails(message))
-        span.set_attribute(tracing.OUTPUT, "".join(parts))
+            try:
+                async for event in stream_reply(message, history, turn):
+                    if "text" in event:
+                        first_text_at = first_text_at or time.perf_counter()
+                        parts.append(event["text"])
+                        yield sse(event)
+                    else:
+                        done = event
+            except ReplyRefused:
+                yield sse({"error": REFUSAL_ERROR})
+            except Exception:
+                # HTTP 200 already sent: any failure must surface as a frame.
+                log.exception("reply stream failed")
+                yield sse({"error": UNAVAILABLE_ERROR})
+            else:
+                reply = "".join(parts)
+                # Empty assistant turns are rejected by the API and would break the chat.
+                if reply.strip():
+                    try:
+                        message_id = await db.save_reply(
+                            conversation_id, redact_emails(reply)
+                        )
+                    except Exception:
+                        log.exception("save_reply failed")
+            # Always last: the widget keeps the chat id even when the reply failed.
+            yield sse(
+                {
+                    "conversation_id": str(conversation_id),
+                    "message_id": str(message_id) if message_id else None,
+                    "citations": done["citations"],
+                    "cards": done["cards"],
+                }
+            )
+        finally:
+            # Also runs when the visitor closes the tab mid-reply (stream closed):
+            # tokens already spent must still reach the daily budget.
+            rows = analytics.reply_rows(
+                turn,
+                message_id,
+                latency_ms=_ms(started, time.perf_counter()),
+                first_token_ms=_ms(started, first_text_at),
+            )
+            analytics.record(rows, redact_emails(message))
+            span.set_attribute(tracing.OUTPUT, "".join(parts))
 
 
 async def budget_events(conversation_id: uuid.UUID | None):

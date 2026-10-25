@@ -163,3 +163,27 @@ def test_record_writes_rows_in_background_and_swallows_db_errors(
     assert "insert into events" in sql.lower()
     assert params[0]["type"] == "answer"
     assert params[0]["tool_name"] is None
+
+
+def test_tab_closed_mid_reply_still_records_spend(model, fake_events):
+    from app.main import chat_events
+
+    model(
+        turns=[
+            {"tool_calls": [("search_knowledge", {"query": "x"})], "usage": (100, 10)},
+            {"chunks": ["first", " second"], "usage": (200, 30)},
+        ]
+    )
+
+    async def close_after_first_frame():
+        stream = chat_events(uuid.uuid4(), "hi", [], False)
+        await anext(stream)  # visitor sees text, then closes the tab
+        await stream.aclose()
+
+    asyncio.run(close_after_first_frame())
+    (row,) = of_type(fake_events, "answer")
+    assert row["message_id"] is None
+    assert row["input_tokens"] >= 100  # spend so far reaches the daily budget
+    assert [r["tool_name"] for r in of_type(fake_events, "tool_call")] == [
+        "search_knowledge"
+    ]
