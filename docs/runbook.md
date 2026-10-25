@@ -80,7 +80,7 @@ When the daily budget is spent, chat replies with a fallback (book a call, get t
    ```
 4. Commit `knowledge/` and the refreshed `evals/REPORT.md`.
 
-If good questions stop finding sources, tune `MIN_SIMILARITY` in `app/retrieval.py` (currently 0.25) against the eval. The free Voyage tier allows about 3 requests per minute; ingest and eval retry on 429.
+If good questions stop finding sources, tune `MIN_SIMILARITY` in `app/retrieval.py` (currently 0.25) against the eval. The free Voyage tier allows about 3 requests per minute: ingest sends one batched call, the eval retries on 429, and chat does not retry (a 429 there ends the reply with an error frame).
 
 ## Handoff triage
 
