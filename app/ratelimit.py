@@ -10,6 +10,7 @@ from app import analytics
 
 CHAT_LIMITS = "10/minute;60/day"
 FEEDBACK_LIMITS = "30/minute"
+INSIGHTS_LIMITS = "30/minute"
 
 
 def client_ip(request: Request) -> str:

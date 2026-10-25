@@ -61,3 +61,8 @@
 - CI eval trigger excludes `knowledge/`: CI never re-ingests, so eval would score stale embeddings; after knowledge edits run ingest + eval locally.
 - deploy skips unless its sha is current main tip: eval duration varies (Voyage retries), so concurrency group alone could deploy an older commit after a newer one.
 - `gh` run under `uv run --env-file .env` picks up the handoff repo's `GITHUB_TOKEN` (403 on repo secrets); strip GITHUB_TOKEN/GH_TOKEN from gh's env.
+- topic label runs inside the background event write, before insert, and adds its cost to the answer row: one row per reply, daily budget sees label spend, chat latency untouched; label failure writes row with topic null.
+- failed replies (`message_id` null) not labelled: `/insights` never counts them, and the label call usually fails the same way.
+- `/insights` conversations = answered OR escalated chats: escalation whose reply then failed would otherwise push `resolved_share` below 0.
+- `/insights` cache is per-process memory, no stale fallback: valid with one Fly machine; DB error returns 503 rather than serve expired numbers.
+- prod data reset 2026-10-25T02:54:28Z (`scripts.purge_before`); local .env still = prod Neon, so local chats count in `/insights` again — use a Neon dev branch for local work.

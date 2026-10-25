@@ -201,6 +201,12 @@ def fake_events(monkeypatch):
     """Captures analytics.record rows instead of writing to the DB."""
     from app import analytics
 
-    state = SimpleNamespace(rows=[], real=analytics.record)
-    monkeypatch.setattr(analytics, "record", lambda rows: state.rows.extend(rows))
+    state = SimpleNamespace(rows=[], messages=[], real=analytics.record)
+
+    def record(rows, message=None):
+        state.rows.extend(rows)
+        if message is not None:
+            state.messages.append(message)
+
+    monkeypatch.setattr(analytics, "record", record)
     return state

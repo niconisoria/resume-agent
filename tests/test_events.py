@@ -24,6 +24,7 @@ ALLOWED_KEYS = {
     "input_tokens",
     "output_tokens",
     "cost_usd",
+    "no_hits",
 }
 
 

@@ -20,6 +20,7 @@ from app.handoff import redact_emails
 from app.ratelimit import (
     CHAT_LIMITS,
     FEEDBACK_LIMITS,
+    INSIGHTS_LIMITS,
     client_ip,
     limiter,
     rate_limited,
@@ -165,7 +166,9 @@ async def _reply_frames(
             "cards": done["cards"],
         }
     )
-    analytics.record(_events(turn, message_id, started, first_text_at))
+    analytics.record(
+        _events(turn, message_id, started, first_text_at), redact_emails(message)
+    )
 
 
 def _ms(start: float, end: float | None) -> int | None:
@@ -196,6 +199,8 @@ def _events(turn: Turn, message_id, started: float, first_text_at: float | None)
                 "input_tokens": turn.input_tokens,
                 "output_tokens": turn.output_tokens,
                 "cost_usd": analytics.cost_usd(turn.input_tokens, turn.output_tokens),
+                # Searched, but nothing cleared the similarity floor.
+                "no_hits": "search_knowledge" in turn.tools and not turn.hits,
             }
         )
     return rows
@@ -270,6 +275,16 @@ async def feedback(request: Request, body: FeedbackIn):  # slowapi needs `reques
     if not saved:
         return JSONResponse(status_code=404, content={"error": "Answer not found."})
     return {"status": "saved"}
+
+
+@app.get("/insights")
+@limiter.limit(INSIGHTS_LIMITS)
+async def insights(request: Request):  # slowapi needs `request`
+    try:
+        return await analytics.stats()
+    except Exception:
+        log.exception("insights query failed")
+        return JSONResponse(status_code=503, content={"error": UNAVAILABLE_ERROR})
 
 
 @app.get("/health")
