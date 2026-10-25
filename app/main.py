@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field, field_validator
 from slowapi.errors import RateLimitExceeded
 
 from app import analytics, budget, db, tracing
-from app.agent import ReplyRefused, Turn, booking_card, cv_card, stream_reply
+from app.agent import ReplyRefused, stream_reply
 from app.config import ALLOWED_ORIGIN, IP_HASH_SALT
 from app.handoff import redact_emails
 from app.ratelimit import (
@@ -25,6 +25,7 @@ from app.ratelimit import (
     limiter,
     rate_limited,
 )
+from app.tools import Turn, booking_card, cv_card
 
 log = logging.getLogger(__name__)
 

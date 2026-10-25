@@ -1,6 +1,6 @@
 from fastapi.testclient import TestClient
 
-from app import agent
+from app import agent, tools
 from app.main import app
 from app.retrieval import Hit
 from tests.helpers import frames
@@ -129,7 +129,7 @@ def test_prompt_covers_skill_rules():
 
 
 def test_every_offered_tool_has_a_handler():
-    assert [t["name"] for t in agent.TOOLS] == list(agent.HANDLERS)
+    assert [t["name"] for t in tools.TOOLS] == list(tools.HANDLERS)
 
 
 def test_repeat_tool_call_tells_model_button_already_shown(model):
