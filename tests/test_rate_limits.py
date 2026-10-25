@@ -1,11 +1,8 @@
 import time
 
 import pytest
-from fastapi.testclient import TestClient
 
-from app.main import app
-
-http = TestClient(app)
+from tests.helpers import chat, http
 
 
 @pytest.fixture
@@ -25,7 +22,7 @@ def clock(monkeypatch):
 
 
 def send(ip="1.1.1.1"):
-    return http.post("/chat", json={"message": "hi"}, headers={"Fly-Client-IP": ip})
+    return chat(ip=ip)
 
 
 @pytest.mark.usefixtures("fake_model")
@@ -82,8 +79,8 @@ def test_second_visitor_unaffected():
 @pytest.mark.usefixtures("fake_model")
 def test_socket_ip_used_without_fly_header():
     for _ in range(10):
-        assert http.post("/chat", json={"message": "hi"}).status_code == 200
-    assert http.post("/chat", json={"message": "hi"}).status_code == 429
+        assert chat().status_code == 200
+    assert chat().status_code == 429
     assert send("3.3.3.3").status_code == 200
 
 

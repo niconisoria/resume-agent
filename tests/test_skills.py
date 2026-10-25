@@ -1,11 +1,6 @@
-from fastapi.testclient import TestClient
-
 from app import agent, tools
-from app.main import app
 from app.retrieval import Hit
-from tests.helpers import frames
-
-http = TestClient(app)
+from tests.helpers import ask
 
 BOOKING = {
     "type": "booking",
@@ -24,10 +19,6 @@ CV_PL = {
     "url": "https://cv.example/pl.pdf",
     "language": "pl",
 }
-
-
-def ask(message="hi"):
-    return frames(http.post("/chat", json={"message": message}))
 
 
 def tool(name, **args):

@@ -6,13 +6,9 @@ from types import SimpleNamespace
 import anthropic
 import httpx2
 import pytest
-from fastapi.testclient import TestClient
 
 from app import analytics, db
-from app.main import app
-from tests.helpers import frames
-
-http = TestClient(app)
+from tests.helpers import ask
 
 ALLOWED_KEYS = {
     "type",
@@ -26,13 +22,6 @@ ALLOWED_KEYS = {
     "cost_usd",
     "no_hits",
 }
-
-
-def ask(message="hi", conversation_id=None, ip="7.7.7.7"):
-    body = {"message": message}
-    if conversation_id:
-        body["conversation_id"] = str(conversation_id)
-    return frames(http.post("/chat", json=body, headers={"Fly-Client-IP": ip}))
 
 
 def of_type(fake_events, kind):

@@ -1,11 +1,6 @@
-from fastapi.testclient import TestClient
-
 from app import agent
-from app.main import app
 from app.retrieval import Hit
-from tests.helpers import frames
-
-http = TestClient(app)
+from tests.helpers import chat, frames
 
 VENTION = Hit(
     "Vention — Senior Software Engineer",
@@ -17,7 +12,7 @@ SKILLS = Hit("Skills", "skills.md", "Ruby: 6 years…", 0.6)
 
 
 def ask(message="What did he build with WebSockets?"):
-    return frames(http.post("/chat", json={"message": message}))
+    return frames(chat(message))
 
 
 def search(query):
@@ -134,11 +129,12 @@ def test_tool_results_not_saved_as_history(model, fake_db, fake_search):
 
 
 def test_search_tool_offered_on_every_call(model):
-    fake = model(chunks=["hi"])
+    fake = model(turns=[{"tool_calls": [search("x")]}, {"chunks": ["hi"]}])
     ask()
-    tools = fake.calls[0]["tools"]
-    assert tools[0]["name"] == "search_knowledge"
-    assert tools[0]["input_schema"]["required"] == ["query"]
+    assert len(fake.calls) == 2
+    for call in fake.calls:
+        assert call["tools"][0]["name"] == "search_knowledge"
+        assert call["tools"][0]["input_schema"]["required"] == ["query"]
 
 
 def test_system_prompt_holds_scope_and_injection_rules():
