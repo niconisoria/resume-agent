@@ -122,6 +122,15 @@ def test_emails_redacted_in_span_events(spans):
     assert boom.events[0].attributes["exception.message"] == "bad contact [email]"
 
 
+def test_emails_redacted_in_span_status(spans):
+    # An exception escaping a span sets status "<Type>: <message>" as well as the event.
+    with pytest.raises(ValueError), trace.get_tracer("t").start_as_current_span("boom"):
+        raise ValueError("bad contact ana@example.com")
+    (boom,) = by_name(spans, "boom")
+    assert boom.status.description == "ValueError: bad contact [email]"
+    assert not boom.status.is_ok
+
+
 def test_sdk_tracing_off_so_llm_calls_not_doubled():
     from app import agent
 
